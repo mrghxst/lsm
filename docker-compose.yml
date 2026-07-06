@@ -3,7 +3,9 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - '127.0.0.1:3000:3000'
+      # Reachable from the whole LAN. Once nginx fronts the app, tighten this
+      # back to '127.0.0.1:3000:3000' so nginx is the only public entry point.
+      - '3000:3000'
     volumes:
       - ./data:/app/data
     environment:
