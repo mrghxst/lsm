@@ -2,8 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Claim, Table } from '../types';
 
-const MIN_SCALE = 1;
+// The virtual room is CANVAS x the viewport in each dimension; the default
+// view (scale = MIN_SCALE) shows all of it.
+const CANVAS = 2;
+const MIN_SCALE = 1 / CANVAS;
 const MAX_SCALE = 3;
+const FIT_VIEW = { scale: MIN_SCALE, tx: 0, ty: 0 };
 
 function clampPos(v: number) {
   return Math.min(0.94, Math.max(0.06, v));
@@ -21,8 +25,8 @@ function clampView(view: View, w: number, h: number): View {
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale));
   return {
     scale,
-    tx: Math.min(0, Math.max(w * (1 - scale), view.tx)),
-    ty: Math.min(0, Math.max(h * (1 - scale), view.ty)),
+    tx: Math.min(0, Math.max(w * (1 - CANVAS * scale), view.tx)),
+    ty: Math.min(0, Math.max(h * (1 - CANVAS * scale), view.ty)),
   };
 }
 
@@ -65,13 +69,18 @@ export function Room({
 }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<View>({ scale: 1, tx: 0, ty: 0 });
+  const [view, setView] = useState<View>(FIT_VIEW);
   const viewRef = useRef(view);
   viewRef.current = view;
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
   const dragRef = useRef<DragInfo | null>(null);
   const [live, setLive] = useState<{ id: number; x: number; y: number } | null>(null);
+
+  function cancelDrag() {
+    dragRef.current = null;
+    setLive(null);
+  }
 
   function zoomAt(px: number, py: number, newScale: number) {
     const rect = outerRef.current?.getBoundingClientRect();
@@ -95,30 +104,41 @@ export function Room({
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // ----- background: pan with one finger, pinch-zoom with two -----
+  // ----- view gestures: pan with one finger on the background, pinch-zoom
+  // with two fingers anywhere (a second finger cancels a table drag) -----
+
+  function startPinch() {
+    cancelDrag();
+    const v = viewRef.current;
+    const [a, b] = [...pointers.current.values()];
+    gesture.current = {
+      type: 'pinch',
+      startDist: Math.hypot(a.x - b.x, a.y - b.y),
+      startScale: v.scale,
+      midX: (a.x + b.x) / 2,
+      midY: (a.y + b.y) / 2,
+      origTx: v.tx,
+      origTy: v.ty,
+    };
+  }
 
   function bgPointerDown(e: ReactPointerEvent) {
-    if ((e.target as HTMLElement).closest('.rtable')) return; // tables drag themselves
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    try {
-      outerRef.current?.setPointerCapture(e.pointerId);
-    } catch {
-      // synthetic events may not carry a real pointer
+    const onTable = (e.target as HTMLElement).closest('.rtable');
+    if (!onTable) {
+      try {
+        outerRef.current?.setPointerCapture(e.pointerId);
+      } catch {
+        // synthetic events may not carry a real pointer
+      }
     }
-    const v = viewRef.current;
     if (pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()];
-      gesture.current = {
-        type: 'pinch',
-        startDist: Math.hypot(a.x - b.x, a.y - b.y),
-        startScale: v.scale,
-        midX: (a.x + b.x) / 2,
-        midY: (a.y + b.y) / 2,
-        origTx: v.tx,
-        origTy: v.ty,
-      };
-    } else {
+      startPinch();
+    } else if (pointers.current.size === 1 && !onTable) {
+      const v = viewRef.current;
       gesture.current = { type: 'pan', startX: e.clientX, startY: e.clientY, origTx: v.tx, origTy: v.ty };
+    } else if (pointers.current.size === 1) {
+      gesture.current = null; // single finger on a table: the table drags itself
     }
   }
 
@@ -169,7 +189,8 @@ export function Room({
   }
 
   function onPointerDown(e: ReactPointerEvent, t: Table) {
-    e.stopPropagation();
+    // no stopPropagation: the room must see this pointer so a second
+    // finger can turn the interaction into a pinch
     dragRef.current = { id: t.id, startX: e.clientX, startY: e.clientY, origX: t.x, origY: t.y, moved: false };
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -179,6 +200,7 @@ export function Room({
   }
 
   function onPointerMove(e: ReactPointerEvent) {
+    if (pointers.current.size >= 2) return; // pinch owns the pointers now
     const d = dragRef.current;
     if (!d || !canvasRef.current) return;
     if (!d.moved) {
@@ -202,8 +224,7 @@ export function Room({
   }
 
   function onPointerCancel() {
-    dragRef.current = null;
-    setLive(null);
+    cancelDrag();
   }
 
   function buttonZoom(factor: number) {
@@ -242,7 +263,7 @@ export function Room({
               style={{
                 left: `${pos.x * 100}%`,
                 top: `${pos.y * 100}%`,
-                width: horizontal ? '40%' : '20%',
+                width: horizontal ? '24%' : '12%',
                 aspectRatio: horizontal ? '2 / 1' : '1 / 2',
               }}
               onPointerDown={(e) => onPointerDown(e, t)}
@@ -274,6 +295,9 @@ export function Room({
         </button>
         <button className="zoom-btn" onClick={() => buttonZoom(1 / 1.3)} aria-label="Zoom out">
           −
+        </button>
+        <button className="zoom-btn" onClick={() => setView(FIT_VIEW)} aria-label="Show the whole room">
+          ⤢
         </button>
       </div>
     </div>

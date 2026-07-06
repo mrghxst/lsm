@@ -84,7 +84,7 @@ CREATE INDEX IF NOT EXISTS idx_members_user ON space_members(user_id);
 // Default arrangement for n tables: a centered grid, coordinates are
 // fractions (0..1) of the room, measured at the table's center.
 export function gridPositions(n) {
-  const cols = n <= 4 ? 2 : n <= 9 ? 3 : 4;
+  const cols = n <= 4 ? 2 : n <= 12 ? 3 : 4;
   const rows = Math.ceil(n / cols);
   return Array.from({ length: n }, (_, i) => ({
     x: ((i % cols) + 0.5) / cols,

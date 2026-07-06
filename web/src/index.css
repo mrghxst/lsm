@@ -352,7 +352,10 @@ body {
 
 .room-canvas {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 200%;
   transform-origin: 0 0;
   background-image: radial-gradient(var(--border) 1px, transparent 1px);
   background-size: 24px 24px;
@@ -413,14 +416,14 @@ body {
 
 .rtable-tag {
   position: absolute;
-  top: -9px;
+  top: -11px;
   left: 8px;
   z-index: 1;
   background: var(--bg);
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 0 6px;
+  padding: 0 7px;
   border-radius: 999px;
   pointer-events: none;
 }
@@ -432,7 +435,7 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -465,7 +468,7 @@ body {
 }
 
 .segment span {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 800;
   text-transform: uppercase;
   color: #fff;
