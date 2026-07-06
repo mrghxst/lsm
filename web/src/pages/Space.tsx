@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../AuthContext';
-import { rememberSpace } from '../recents';
 import { disablePush, enablePush, getPushEnabled, iosNeedsInstall, pushSupported } from '../push';
 import type { SpaceState } from '../types';
 import { SummaryBar } from '../components/SummaryBar';
 import { Room } from '../components/Room';
 import { PeopleList } from '../components/PeopleList';
 import { ClaimSheet } from '../components/ClaimSheet';
+import { Stepper } from '../components/Stepper';
 
 export function Space() {
   const { code = '' } = useParams();
@@ -20,6 +20,8 @@ export function Space() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [pushOn, setPushOn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [setupTables, setSetupTables] = useState(4);
+  const [setupSeats, setSetupSeats] = useState(2);
   const toastTimer = useRef<number>();
 
   const showToast = useCallback((msg: string) => {
@@ -59,10 +61,6 @@ export function Space() {
     };
   }, [user, code]);
 
-  useEffect(() => {
-    if (state && state.space.status === 'open') rememberSpace(state.space.code, state.space.name);
-  }, [state]);
-
   const mutate = useCallback(
     async (path: string, options: { method: string; body?: unknown }, { close = true } = {}) => {
       try {
@@ -71,9 +69,6 @@ export function Space() {
         if (close) setSelectedId(null);
       } catch (e) {
         showToast(e instanceof Error ? e.message : 'Something went wrong.');
-        if (e instanceof ApiError && e.status === 410) {
-          setState((prev) => (prev ? { ...prev, space: { ...prev.space, status: 'closed' } } : prev));
-        }
       }
     },
     [showToast],
@@ -110,7 +105,7 @@ export function Space() {
       } else {
         await enablePush();
         setPushOn(true);
-        showToast("You'll be notified when people join, arrive or leave.");
+        showToast("You'll be notified when the space gets set up and when people join.");
       }
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Could not change notifications.');
@@ -133,29 +128,77 @@ export function Space() {
   }
 
   const { space, tables } = state;
+  const canManage = space.status === 'open' && (space.openedBy === user.id || space.ownerId === user.id);
+  const selectedTable = tables.find((t) => t.id === selectedId) ?? null;
 
-  if (space.status === 'closed') {
+  const header = (
+    <header className="top-bar">
+      <Link to="/" className="icon-btn" aria-label="Back">
+        ←
+      </Link>
+      <div className="top-title-group">
+        <h1 className="top-title">{space.name}</h1>
+        <span className="top-sub">
+          Code {space.code}
+          {space.status === 'open' && space.openedByName ? ` · set up by ${space.openedByName}` : ''}
+          <span className={`live-dot ${connected ? 'on' : 'off'}`} title={connected ? 'Live' : 'Reconnecting…'} />
+        </span>
+      </div>
+      <button
+        className={`icon-btn${pushOn ? ' icon-btn-active' : ''}`}
+        onClick={() => void toggleNotifications()}
+        aria-label="Notifications"
+      >
+        {pushOn ? '🔔' : '🔕'}
+      </button>
+      <button className="icon-btn" onClick={() => void share()} aria-label="Share">
+        📤
+      </button>
+    </header>
+  );
+
+  if (space.status === 'idle') {
     return (
-      <div className="app screen-center stack">
-        <div className="hero-icon">🌙</div>
-        <h1>This space has ended</h1>
-        <p className="tagline">“{space.name}” is no longer active.</p>
-        <Link to="/" className="btn btn-primary btn-link">
-          Back to start
-        </Link>
+      <div className="app">
+        {header}
+        <div className="stack idle-screen">
+          <div className="card stack idle-card">
+            <div className="hero-icon">🌅</div>
+            <h2 className="idle-title">Nothing set up today</h2>
+            <p className="hint idle-hint">
+              First one there? Reserve the tables in the room, then set them up here — everyone in the group
+              {pushOn ? ' gets notified.' : ' gets notified (turn on the 🔔 above to get yours).'}
+            </p>
+          </div>
+          <div className="card stack">
+            <Stepper label="Tables reserved" value={setupTables} min={1} max={20} onChange={setSetupTables} />
+            <Stepper label="Seats per table" value={setupSeats} min={1} max={8} onChange={setSetupSeats} />
+            <button
+              className="btn btn-primary"
+              onClick={() =>
+                void mutate(`/api/spaces/${code}/sessions`, {
+                  method: 'POST',
+                  body: { tableCount: setupTables, defaultCapacity: setupSeats },
+                })
+              }
+            >
+              🌅 Set up the space
+            </button>
+          </div>
+        </div>
+        {toast && <div className="toast">{toast}</div>}
       </div>
     );
   }
 
-  const isOwner = space.ownerId === user.id;
-  const selectedTable = tables.find((t) => t.id === selectedId) ?? null;
-
   const actions = {
     join: (tableId: number, eta: string) =>
       mutate(`/api/spaces/${code}/tables/${tableId}/claims`, { method: 'POST', body: { eta } }),
-    updateEta: (eta: string) => mutate(`/api/spaces/${code}/claims/mine`, { method: 'PATCH', body: { eta } }),
-    markArrived: () => mutate(`/api/spaces/${code}/claims/mine`, { method: 'PATCH', body: { status: 'arrived' } }),
-    leave: () => mutate(`/api/spaces/${code}/claims/mine`, { method: 'DELETE' }),
+    addGuest: (tableId: number, name: string, eta: string) =>
+      mutate(`/api/spaces/${code}/tables/${tableId}/guests`, { method: 'POST', body: { name, eta } }),
+    updateClaim: (claimId: number, body: { eta?: string; status?: string }, close = true) =>
+      mutate(`/api/spaces/${code}/claims/${claimId}`, { method: 'PATCH', body }, { close }),
+    removeClaim: (claimId: number) => mutate(`/api/spaces/${code}/claims/${claimId}`, { method: 'DELETE' }),
     setReleased: (tableId: number, released: boolean) =>
       mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { released } }, { close: false }),
     setCapacity: (tableId: number, capacity: number) =>
@@ -171,56 +214,46 @@ export function Space() {
     },
     move: (tableId: number, x: number, y: number) =>
       mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { x, y } }, { close: false }),
+    removeTable: (tableId: number) => mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'DELETE' }),
   };
 
   return (
     <div className="app">
-      <header className="top-bar">
-        <Link to="/" className="icon-btn" aria-label="Back">
-          ←
-        </Link>
-        <div className="top-title-group">
-          <h1 className="top-title">{space.name}</h1>
-          <span className="top-sub">
-            Code {space.code} · by {space.ownerName}
-            <span className={`live-dot ${connected ? 'on' : 'off'}`} title={connected ? 'Live' : 'Reconnecting…'} />
-          </span>
-        </div>
-        <button
-          className={`icon-btn${pushOn ? ' icon-btn-active' : ''}`}
-          onClick={() => void toggleNotifications()}
-          aria-label="Notifications"
-        >
-          {pushOn ? '🔔' : '🔕'}
-        </button>
-        <button className="icon-btn" onClick={() => void share()} aria-label="Share">
-          📤
-        </button>
-      </header>
+      {header}
 
       <SummaryBar state={state} />
 
       <Room
         tables={tables}
         currentUserId={user.id}
-        canArrange={isOwner}
+        canArrange={canManage}
         onTap={(id) => setSelectedId(id)}
         onMove={actions.move}
       />
-      {isOwner && <p className="hint room-hint">Tap a table to set it up — drag to move it around.</p>}
+      {canManage && (
+        <div className="room-toolbar">
+          <p className="hint room-hint">Tap a table to set it up — drag to move it.</p>
+          <button
+            className="btn btn-secondary btn-compact"
+            onClick={() => void mutate(`/api/spaces/${code}/tables`, { method: 'POST' }, { close: false })}
+          >
+            ➕ Add table
+          </button>
+        </div>
+      )}
 
       <PeopleList tables={tables} />
 
-      {isOwner && (
+      {canManage && (
         <button
           className="btn btn-danger end-space"
           onClick={() => {
-            if (window.confirm('End this space for everyone?')) {
-              void mutate(`/api/spaces/${code}`, { method: 'PATCH', body: { status: 'closed' } });
+            if (window.confirm('End today\'s session? Tables and seats are cleared — the space and its code stay.')) {
+              void mutate(`/api/spaces/${code}`, { method: 'PATCH', body: { status: 'idle' } });
             }
           }}
         >
-          End space
+          End today's session
         </button>
       )}
 
@@ -229,6 +262,7 @@ export function Space() {
           state={state}
           table={selectedTable}
           userId={user.id}
+          canManage={canManage}
           onClose={() => setSelectedId(null)}
           actions={actions}
         />

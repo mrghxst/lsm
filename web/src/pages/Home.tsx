@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { api } from '../api';
 import { useAuth } from '../AuthContext';
-import { getRecents } from '../recents';
 import { PALETTE } from '../colors';
+import type { GroupSummary } from '../types';
 
 export function Home() {
   const { user, loading, signIn, signOut } = useAuth();
@@ -19,7 +20,14 @@ export function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState('');
-  const recents = useMemo(getRecents, [user]);
+  const [groups, setGroups] = useState<GroupSummary[] | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    api<{ spaces: GroupSummary[] }>('/api/me/spaces')
+      .then((r) => setGroups(r.spaces))
+      .catch(() => setGroups([]));
+  }, [user]);
 
   async function submitSignIn(e: FormEvent) {
     e.preventDefault();
@@ -122,6 +130,26 @@ export function Home() {
       </header>
 
       <div className="stack">
+        {groups && groups.length > 0 && (
+          <div className="card stack">
+            <h2 className="section-title">Your spaces</h2>
+            {groups.map((g) => (
+              <Link key={g.code} to={`/s/${g.code}`} className="recent-row group-row">
+                <span className={`group-status ${g.status}`} />
+                <span className="group-main">
+                  <span className="recent-name">{g.name}</span>
+                  <span className="group-sub">
+                    {g.status === 'open'
+                      ? `${g.openedByName} set it up · ${g.peopleCount} ${g.peopleCount === 1 ? 'person' : 'people'} · ${g.freeSeats} ${g.freeSeats === 1 ? 'seat' : 'seats'} free`
+                      : 'Nothing set up today'}
+                  </span>
+                </span>
+                <span className="recent-code">{g.code}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
         <Link to="/new" className="btn btn-primary btn-link">
           ➕ Create a space
         </Link>
@@ -143,18 +171,6 @@ export function Home() {
             Open space
           </button>
         </form>
-
-        {recents.length > 0 && (
-          <div className="card stack">
-            <h2 className="section-title">Recent spaces</h2>
-            {recents.map((r) => (
-              <Link key={r.code} to={`/s/${r.code}`} className="recent-row">
-                <span className="recent-name">{r.name}</span>
-                <span className="recent-code">{r.code}</span>
-              </Link>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

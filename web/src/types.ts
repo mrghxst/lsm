@@ -5,9 +5,11 @@ export interface User {
 }
 
 export interface Claim {
-  userId: number;
+  id: number;
+  userId: number; // for guests: the member who reserved the seat
   username: string;
   color: string;
+  guestName: string | null;
   eta: string; // 'now' or 'HH:MM'
   status: 'coming' | 'arrived';
 }
@@ -28,11 +30,25 @@ export interface SpaceInfo {
   name: string;
   ownerId: number;
   ownerName: string;
-  status: 'open' | 'closed';
+  status: 'idle' | 'open';
+  openedBy: number | null;
+  openedByName: string | null;
+  openedAt: number | null;
   createdAt: number;
 }
 
 export interface SpaceState {
   space: SpaceInfo;
   tables: Table[];
+}
+
+export interface GroupSummary {
+  code: string;
+  name: string;
+  status: 'idle' | 'open';
+  ownerName: string;
+  openedByName: string | null;
+  totalSeats: number;
+  peopleCount: number;
+  freeSeats: number;
 }

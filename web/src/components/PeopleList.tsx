@@ -13,9 +13,12 @@ export function PeopleList({ tables }: { tables: Table[] }) {
       <h2 className="section-title">Who's coming</h2>
       <ul className="people-list">
         {rows.map((r) => (
-          <li key={r.userId}>
+          <li key={r.id}>
             <span className="person-dot" style={{ background: r.color }} />
-            <span className="person-name">{r.username}</span>
+            <span className="person-name">
+              {r.guestName ?? r.username}
+              {r.guestName && <span className="occupant-sub"> · friend of {r.username}</span>}
+            </span>
             <span className="person-table">{r.tableLabel}</span>
             <span className="person-eta">{r.status === 'arrived' ? 'here 🎉' : etaLabel(r.eta)}</span>
           </li>

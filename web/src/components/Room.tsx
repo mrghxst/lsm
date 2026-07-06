@@ -14,7 +14,7 @@ function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
       : { background: `${claim.color}38`, boxShadow: `inset 0 0 0 2px ${claim.color}` };
   return (
     <div className={`segment${mine ? ' mine-seat' : ''}`} style={style}>
-      <span>{claim.username.slice(0, 2)}</span>
+      <span>{(claim.guestName ?? claim.username).slice(0, 2)}</span>
     </div>
   );
 }
@@ -96,7 +96,7 @@ export function Room({
       {tables.map((t) => {
         const pos = live?.id === t.id ? live : { x: t.x, y: t.y };
         const horizontal = t.rot === 0;
-        const mine = t.claims.some((c) => c.userId === currentUserId);
+        const mine = t.claims.some((c) => c.userId === currentUserId && !c.guestName);
         return (
           <div
             key={t.id}
@@ -124,7 +124,11 @@ export function Room({
             ) : (
               <div className={`segments ${horizontal ? 'srow' : 'scol'}`}>
                 {Array.from({ length: t.capacity }, (_, i) => (
-                  <Segment key={i} claim={t.claims[i]} mine={t.claims[i]?.userId === currentUserId} />
+                  <Segment
+                    key={i}
+                    claim={t.claims[i]}
+                    mine={t.claims[i]?.userId === currentUserId && !t.claims[i]?.guestName}
+                  />
                 ))}
               </div>
             )}

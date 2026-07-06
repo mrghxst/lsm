@@ -9,6 +9,9 @@ export const db = new Database(path.join(dataDir, 'lsm.sqlite'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// A "space" is a persistent study group with a stable share code. Each day
+// a member opens a session (creates tables); ending it wipes tables+claims
+// but keeps the group, its code and its members.
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,9 +32,17 @@ CREATE TABLE IF NOT EXISTS spaces (
   code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   owner_id INTEGER NOT NULL REFERENCES users(id),
-  seats_per_table INTEGER NOT NULL,
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'open')),
+  opened_by INTEGER REFERENCES users(id),
+  opened_at INTEGER,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS space_members (
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (space_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS tables (
@@ -49,10 +60,10 @@ CREATE TABLE IF NOT EXISTS claims (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  guest_name TEXT,
   eta TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'coming' CHECK (status IN ('coming', 'arrived')),
-  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-  UNIQUE (table_id, user_id)
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -66,6 +77,7 @@ CREATE INDEX IF NOT EXISTS idx_tables_space ON tables(space_id);
 CREATE INDEX IF NOT EXISTS idx_claims_table ON claims(table_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_expiry ON auth_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_members_user ON space_members(user_id);
 `);
 
 // Default arrangement for n tables: a centered grid, coordinates are
@@ -79,7 +91,8 @@ export function gridPositions(n) {
   }));
 }
 
-// Migrations for databases created by earlier versions.
+// ---------- migrations for databases created by earlier versions ----------
+
 function hasColumn(table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
 }
@@ -108,3 +121,59 @@ if (!hasColumn('tables', 'x')) {
     tables.forEach((t, i) => setPos.run(positions[i].x, positions[i].y, t.id));
   }
 }
+
+// One-shot spaces -> persistent groups with sessions. Requires rebuilding
+// the spaces table (old CHECK allowed only open/closed) and the claims
+// table (drop UNIQUE(table_id, user_id) so guests can share a host).
+if (!hasColumn('spaces', 'opened_by')) {
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE spaces_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        owner_id INTEGER NOT NULL REFERENCES users(id),
+        status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'open')),
+        opened_by INTEGER REFERENCES users(id),
+        opened_at INTEGER,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+      INSERT INTO spaces_new (id, code, name, owner_id, status, opened_by, opened_at, created_at)
+        SELECT id, code, name, owner_id,
+               CASE WHEN status = 'open' THEN 'open' ELSE 'idle' END,
+               CASE WHEN status = 'open' THEN owner_id ELSE NULL END,
+               CASE WHEN status = 'open' THEN created_at ELSE NULL END,
+               created_at
+        FROM spaces;
+      DROP TABLE spaces;
+      ALTER TABLE spaces_new RENAME TO spaces;
+
+      CREATE TABLE claims_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        guest_name TEXT,
+        eta TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'coming' CHECK (status IN ('coming', 'arrived')),
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+      INSERT INTO claims_new (id, table_id, user_id, guest_name, eta, status, created_at)
+        SELECT id, table_id, user_id, NULL, eta, status, created_at FROM claims;
+      DROP TABLE claims;
+      ALTER TABLE claims_new RENAME TO claims;
+      CREATE INDEX IF NOT EXISTS idx_claims_table ON claims(table_id);
+
+      -- ended sessions keep the group but not the furniture
+      DELETE FROM tables WHERE space_id IN (SELECT id FROM spaces WHERE status = 'idle');
+    `);
+  })();
+  db.pragma('foreign_keys = ON');
+}
+
+// Seed memberships (idempotent): owners and everyone with a claim belong.
+db.exec(`
+  INSERT OR IGNORE INTO space_members (space_id, user_id) SELECT id, owner_id FROM spaces;
+  INSERT OR IGNORE INTO space_members (space_id, user_id)
+    SELECT t.space_id, c.user_id FROM claims c JOIN tables t ON t.id = c.table_id;
+`);

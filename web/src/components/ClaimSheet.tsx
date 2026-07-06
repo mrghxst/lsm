@@ -6,34 +6,44 @@ import { Stepper } from './Stepper';
 
 interface Actions {
   join(tableId: number, eta: string): void;
-  updateEta(eta: string): void;
-  markArrived(): void;
-  leave(): void;
+  addGuest(tableId: number, name: string, eta: string): void;
+  updateClaim(claimId: number, body: { eta?: string; status?: string }, close?: boolean): void;
+  removeClaim(claimId: number): void;
   setReleased(tableId: number, released: boolean): void;
   setCapacity(tableId: number, capacity: number): void;
   rotate(tableId: number): void;
+  removeTable(tableId: number): void;
 }
 
 export function ClaimSheet({
   state,
   table,
   userId,
+  canManage,
   onClose,
   actions,
 }: {
   state: SpaceState;
   table: Table;
   userId: number;
+  canManage: boolean;
   onClose(): void;
   actions: Actions;
 }) {
-  const { space } = state;
-  const myClaimHere = table.claims.find((c) => c.userId === userId);
-  const myOtherTable = state.tables.find((t) => t.id !== table.id && t.claims.some((c) => c.userId === userId));
-  const isOwner = space.ownerId === userId;
+  const myClaimHere = table.claims.find((c) => c.userId === userId && !c.guestName);
+  const myOtherTable = state.tables.find(
+    (t) => t.id !== table.id && t.claims.some((c) => c.userId === userId && !c.guestName),
+  );
   const isFull = table.claims.length >= table.capacity;
   const [eta, setEta] = useState<string>(myClaimHere && myClaimHere.eta !== 'now' ? myClaimHere.eta : 'now');
   const [editingTime, setEditingTime] = useState(false);
+  const [guestMode, setGuestMode] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [guestEta, setGuestEta] = useState('now');
+
+  const manageableOthers = table.claims.filter(
+    (c) => c !== myClaimHere && (c.userId === userId || canManage),
+  );
 
   let body;
   if (myClaimHere) {
@@ -45,7 +55,7 @@ export function ClaimSheet({
             : `You're coming ${myClaimHere.eta === 'now' ? 'right now' : `at ${myClaimHere.eta}`}.`}
         </p>
         {myClaimHere.status === 'coming' && (
-          <button className="btn btn-primary" onClick={actions.markArrived}>
+          <button className="btn btn-primary" onClick={() => actions.updateClaim(myClaimHere.id, { status: 'arrived' })}>
             ✅ I've arrived
           </button>
         )}
@@ -53,7 +63,7 @@ export function ClaimSheet({
           (editingTime ? (
             <>
               <EtaPicker value={eta} onChange={setEta} />
-              <button className="btn btn-secondary" onClick={() => actions.updateEta(eta)}>
+              <button className="btn btn-secondary" onClick={() => actions.updateClaim(myClaimHere.id, { eta })}>
                 Save new time
               </button>
             </>
@@ -62,16 +72,16 @@ export function ClaimSheet({
               🕐 Change arrival time
             </button>
           ))}
-        <button className="btn btn-danger" onClick={actions.leave}>
+        <button className="btn btn-danger" onClick={() => actions.removeClaim(myClaimHere.id)}>
           Leave table
         </button>
       </>
     );
   } else if (table.released) {
-    body = <p className="sheet-status">This table was given back{isOwner ? '.' : ' — pick another one.'}</p>;
+    body = <p className="sheet-status">This table was given back{canManage ? '.' : ' — pick another one.'}</p>;
   } else if (isFull) {
     body = <p className="sheet-status">This table is full — pick another one.</p>;
-  } else {
+  } else if (!guestMode) {
     body = (
       <>
         <p className="sheet-label">When will you arrive?</p>
@@ -84,6 +94,31 @@ export function ClaimSheet({
     );
   }
 
+  const showGuestButton = !table.released && !isFull;
+  const guestForm = guestMode && showGuestButton && (
+    <div className="stack guest-form">
+      <p className="sheet-label">Reserve a seat for a friend</p>
+      <input
+        className="input"
+        value={guestName}
+        onChange={(e) => setGuestName(e.target.value)}
+        placeholder="Friend's name"
+        maxLength={20}
+      />
+      <EtaPicker value={guestEta} onChange={setGuestEta} />
+      <button
+        className="btn btn-primary"
+        disabled={!guestName.trim()}
+        onClick={() => actions.addGuest(table.id, guestName.trim(), guestEta)}
+      >
+        Reserve for {guestName.trim() || 'them'}
+      </button>
+      <button className="link-btn" onClick={() => setGuestMode(false)}>
+        Back
+      </button>
+    </div>
+  );
+
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -95,9 +130,44 @@ export function ClaimSheet({
           </span>
         </div>
         <div className="stack">
-          {body}
-          {isOwner && (
-            <div className="sheet-owner">
+          {!guestMode && body}
+          {guestForm}
+          {!guestMode && showGuestButton && (
+            <button className="btn btn-secondary" onClick={() => setGuestMode(true)}>
+              👋 Reserve a seat for a friend
+            </button>
+          )}
+
+          {manageableOthers.length > 0 && (
+            <div className="sheet-section">
+              <p className="sheet-label">Seats you can manage</p>
+              {manageableOthers.map((c) => (
+                <div key={c.id} className="occupant-row">
+                  <span className="person-dot" style={{ background: c.color }} />
+                  <span className="occupant-name">
+                    {c.guestName ?? c.username}
+                    {c.guestName && <span className="occupant-sub"> · friend of {c.username}</span>}
+                  </span>
+                  <span className="occupant-eta">{c.status === 'arrived' ? 'here' : etaLabel(c.eta)}</span>
+                  {c.status === 'coming' && (
+                    <button
+                      className="occupant-btn"
+                      title="Mark as arrived"
+                      onClick={() => actions.updateClaim(c.id, { status: 'arrived' }, false)}
+                    >
+                      ✓
+                    </button>
+                  )}
+                  <button className="occupant-btn danger" title="Remove" onClick={() => actions.removeClaim(c.id)}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {canManage && (
+            <div className="sheet-section">
               <p className="sheet-label">Table settings</p>
               {!table.released && (
                 <Stepper
@@ -127,6 +197,11 @@ export function ClaimSheet({
                   )
                 )}
               </div>
+              {table.claims.length === 0 && (
+                <button className="btn btn-danger" onClick={() => actions.removeTable(table.id)}>
+                  Remove this table
+                </button>
+              )}
             </div>
           )}
         </div>

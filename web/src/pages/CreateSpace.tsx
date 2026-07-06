@@ -3,7 +3,6 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
-import { rememberSpace } from '../recents';
 import { Stepper } from '../components/Stepper';
 
 export function CreateSpace() {
@@ -28,7 +27,6 @@ export function CreateSpace() {
         method: 'POST',
         body: { name: name.trim(), tableCount, defaultCapacity },
       });
-      rememberSpace(code, name.trim());
       navigate(`/s/${code}`, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the space.');
@@ -63,7 +61,7 @@ export function CreateSpace() {
           <Stepper label="Seats per table" value={defaultCapacity} min={1} max={8} onChange={setDefaultCapacity} />
           <p className="hint">
             Room for {tableCount * defaultCapacity} people. Afterwards you can adjust each table individually — seats,
-            position, rotation.
+            position, rotation. The share code stays valid forever: your group reuses it every day.
           </p>
         </div>
 
