@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { db } from './db.js';
+import { colorFor, isValidColor } from './colors.js';
 
 const TOKEN_TTL_SECONDS = 90 * 24 * 3600;
 
@@ -20,11 +21,16 @@ function setSessionCookie(req, res, userId) {
   });
 }
 
+function publicUser(user) {
+  return { id: user.id, username: user.username, color: colorFor(user) };
+}
+
 // Single register-or-login flow: unknown name creates an account,
 // known name requires the matching PIN.
 authRouter.post('/session', (req, res) => {
   const username = String(req.body?.username ?? '').trim();
   const pin = String(req.body?.pin ?? '');
+  const color = req.body?.color;
   if (username.length < 2 || username.length > 20) {
     return res.status(400).json({ error: 'Name must be 2–20 characters.' });
   }
@@ -37,13 +43,23 @@ authRouter.post('/session', (req, res) => {
     if (!bcrypt.compareSync(pin, existing.pin_hash)) {
       return res.status(401).json({ error: 'Wrong PIN for this name (or the name is taken by someone else).' });
     }
+    // Returning user picked a different color on the sign-in screen: honor it.
+    if (isValidColor(color) && color !== existing.color) {
+      db.prepare('UPDATE users SET color = ? WHERE id = ?').run(color, existing.id);
+      existing.color = color;
+    }
     setSessionCookie(req, res, existing.id);
-    return res.json({ user: { id: existing.id, username: existing.username }, created: false });
+    return res.json({ user: publicUser(existing), created: false });
   }
 
-  const info = db.prepare('INSERT INTO users (username, pin_hash) VALUES (?, ?)').run(username, bcrypt.hashSync(pin, 10));
-  setSessionCookie(req, res, info.lastInsertRowid);
-  res.json({ user: { id: info.lastInsertRowid, username }, created: true });
+  const info = db.prepare('INSERT INTO users (username, pin_hash, color) VALUES (?, ?, ?)').run(
+    username,
+    bcrypt.hashSync(pin, 10),
+    isValidColor(color) ? color : '',
+  );
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+  setSessionCookie(req, res, user.id);
+  res.json({ user: publicUser(user), created: true });
 });
 
 authRouter.post('/logout', (req, res) => {
@@ -56,7 +72,7 @@ authRouter.post('/logout', (req, res) => {
 authRouter.get('/me', (req, res) => {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Not signed in.' });
-  res.json({ user: { id: user.id, username: user.username } });
+  res.json({ user: publicUser(user) });
 });
 
 export function getSessionUser(req) {

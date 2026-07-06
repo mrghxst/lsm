@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { getRecents } from '../recents';
+import { PALETTE } from '../colors';
 
 export function Home() {
   const { user, loading, signIn, signOut } = useAuth();
@@ -12,6 +13,9 @@ export function Home() {
 
   const [username, setUsername] = useState(() => localStorage.getItem('lsm.lastName') ?? '');
   const [pin, setPin] = useState('');
+  const [color, setColor] = useState(
+    () => localStorage.getItem('lsm.lastColor') ?? PALETTE[Math.floor(Math.random() * PALETTE.length)],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState('');
@@ -22,8 +26,9 @@ export function Home() {
     setBusy(true);
     setError(null);
     try {
-      await signIn(username.trim(), pin);
+      await signIn(username.trim(), pin, color);
       localStorage.setItem('lsm.lastName', username.trim());
+      localStorage.setItem('lsm.lastColor', color);
       if (next) navigate(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed.');
@@ -78,6 +83,21 @@ export function Home() {
               required
             />
           </label>
+          <div className="field">
+            <span>Your color</span>
+            <div className="swatches">
+              {PALETTE.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`swatch${c === color ? ' active' : ''}`}
+                  style={{ background: c }}
+                  onClick={() => setColor(c)}
+                  aria-label={`Color ${c}`}
+                />
+              ))}
+            </div>
+          </div>
           {error && <p className="error">{error}</p>}
           <button className="btn btn-primary" disabled={busy}>
             {busy ? '…' : "Let's go"}
@@ -93,7 +113,8 @@ export function Home() {
       <header className="page-head">
         <h1>Learning Space Manager</h1>
         <p className="tagline">
-          Hi {user.username}!{' '}
+          Hi <span className="person-dot inline-dot" style={{ background: user.color }} />
+          {user.username}!{' '}
           <button className="link-btn" onClick={() => void signOut()}>
             Sign out
           </button>

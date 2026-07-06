@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SpaceState, Table } from '../types';
 import { etaLabel } from '../util';
 import { EtaPicker } from './EtaPicker';
+import { Stepper } from './Stepper';
 
 interface Actions {
   join(tableId: number, eta: string): void;
@@ -9,6 +10,8 @@ interface Actions {
   markArrived(): void;
   leave(): void;
   setReleased(tableId: number, released: boolean): void;
+  setCapacity(tableId: number, capacity: number): void;
+  rotate(tableId: number): void;
 }
 
 export function ClaimSheet({
@@ -28,7 +31,7 @@ export function ClaimSheet({
   const myClaimHere = table.claims.find((c) => c.userId === userId);
   const myOtherTable = state.tables.find((t) => t.id !== table.id && t.claims.some((c) => c.userId === userId));
   const isOwner = space.ownerId === userId;
-  const isFull = table.claims.length >= space.seatsPerTable;
+  const isFull = table.claims.length >= table.capacity;
   const [eta, setEta] = useState<string>(myClaimHere && myClaimHere.eta !== 'now' ? myClaimHere.eta : 'now');
   const [editingTime, setEditingTime] = useState(false);
 
@@ -65,16 +68,7 @@ export function ClaimSheet({
       </>
     );
   } else if (table.released) {
-    body = (
-      <>
-        <p className="sheet-status">This table was given back{isOwner ? '.' : ' — pick another one.'}</p>
-        {isOwner && (
-          <button className="btn btn-secondary" onClick={() => actions.setReleased(table.id, false)}>
-            Reserve it again
-          </button>
-        )}
-      </>
-    );
+    body = <p className="sheet-status">This table was given back{isOwner ? '.' : ' — pick another one.'}</p>;
   } else if (isFull) {
     body = <p className="sheet-status">This table is full — pick another one.</p>;
   } else {
@@ -90,8 +84,6 @@ export function ClaimSheet({
     );
   }
 
-  const canGiveBack = isOwner && !myClaimHere && !table.released && table.claims.length === 0;
-
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -99,15 +91,43 @@ export function ClaimSheet({
         <div className="sheet-head">
           <h2>Table {table.label.replace(/^T/, '')}</h2>
           <span className="table-count">
-            {table.claims.length}/{space.seatsPerTable} seats
+            {table.released ? 'given back' : `${table.claims.length}/${table.capacity} seats`}
           </span>
         </div>
         <div className="stack">
           {body}
-          {canGiveBack && (
-            <button className="btn btn-secondary" onClick={() => actions.setReleased(table.id, true)}>
-              Give this table back
-            </button>
+          {isOwner && (
+            <div className="sheet-owner">
+              <p className="sheet-label">Table settings</p>
+              {!table.released && (
+                <Stepper
+                  small
+                  label="Seats"
+                  value={table.capacity}
+                  min={Math.max(1, table.claims.length)}
+                  max={8}
+                  onChange={(v) => actions.setCapacity(table.id, v)}
+                />
+              )}
+              <div className="sheet-owner-row">
+                {!table.released && (
+                  <button className="btn btn-secondary" onClick={() => actions.rotate(table.id)}>
+                    ⟳ Rotate
+                  </button>
+                )}
+                {table.released ? (
+                  <button className="btn btn-secondary" onClick={() => actions.setReleased(table.id, false)}>
+                    Reserve it again
+                  </button>
+                ) : (
+                  table.claims.length === 0 && (
+                    <button className="btn btn-secondary" onClick={() => actions.setReleased(table.id, true)}>
+                      Give back
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>

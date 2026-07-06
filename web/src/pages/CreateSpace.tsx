@@ -4,42 +4,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import { rememberSpace } from '../recents';
-
-function Stepper({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange(v: number): void;
-}) {
-  return (
-    <div className="stepper">
-      <span className="stepper-label">{label}</span>
-      <div className="stepper-controls">
-        <button type="button" className="stepper-btn" onClick={() => onChange(value - 1)} disabled={value <= min}>
-          −
-        </button>
-        <span className="stepper-value">{value}</span>
-        <button type="button" className="stepper-btn" onClick={() => onChange(value + 1)} disabled={value >= max}>
-          +
-        </button>
-      </div>
-    </div>
-  );
-}
+import { Stepper } from '../components/Stepper';
 
 export function CreateSpace() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [tableCount, setTableCount] = useState(4);
-  const [seatsPerTable, setSeatsPerTable] = useState(4);
+  const [defaultCapacity, setDefaultCapacity] = useState(2);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +26,7 @@ export function CreateSpace() {
     try {
       const { code } = await api<{ code: string }>('/api/spaces', {
         method: 'POST',
-        body: { name: name.trim(), tableCount, seatsPerTable },
+        body: { name: name.trim(), tableCount, defaultCapacity },
       });
       rememberSpace(code, name.trim());
       navigate(`/s/${code}`, { replace: true });
@@ -88,9 +60,10 @@ export function CreateSpace() {
 
         <div className="card stack">
           <Stepper label="Tables reserved" value={tableCount} min={1} max={20} onChange={setTableCount} />
-          <Stepper label="Seats per table" value={seatsPerTable} min={1} max={8} onChange={setSeatsPerTable} />
+          <Stepper label="Seats per table" value={defaultCapacity} min={1} max={8} onChange={setDefaultCapacity} />
           <p className="hint">
-            Room for {tableCount * seatsPerTable} people. You can give tables back later if fewer show up.
+            Room for {tableCount * defaultCapacity} people. Afterwards you can adjust each table individually — seats,
+            position, rotation.
           </p>
         </div>
 

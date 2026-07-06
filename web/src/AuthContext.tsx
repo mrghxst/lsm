@@ -6,7 +6,7 @@ import type { User } from './types';
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  signIn(username: string, pin: string): Promise<void>;
+  signIn(username: string, pin: string, color?: string): Promise<void>;
   signOut(): Promise<void>;
 }
 
@@ -23,8 +23,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const signIn = useCallback(async (username: string, pin: string) => {
-    const r = await api<{ user: User }>('/api/auth/session', { method: 'POST', body: { username, pin } });
+  const signIn = useCallback(async (username: string, pin: string, color?: string) => {
+    const r = await api<{ user: User }>('/api/auth/session', { method: 'POST', body: { username, pin, color } });
     setUser(r.user);
   }, []);
 

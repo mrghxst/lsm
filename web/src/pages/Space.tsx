@@ -3,9 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../AuthContext';
 import { rememberSpace } from '../recents';
+import { disablePush, enablePush, getPushEnabled, iosNeedsInstall, pushSupported } from '../push';
 import type { SpaceState } from '../types';
 import { SummaryBar } from '../components/SummaryBar';
-import { TableCard } from '../components/TableCard';
+import { Room } from '../components/Room';
+import { PeopleList } from '../components/PeopleList';
 import { ClaimSheet } from '../components/ClaimSheet';
 
 export function Space() {
@@ -16,18 +18,23 @@ export function Space() {
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [pushOn, setPushOn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number>();
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+    toastTimer.current = window.setTimeout(() => setToast(null), 4000);
   }, []);
 
   useEffect(() => {
     if (!loading && !user) navigate(`/?next=/s/${code}`, { replace: true });
   }, [loading, user, code, navigate]);
+
+  useEffect(() => {
+    getPushEnabled().then(setPushOn).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -57,11 +64,11 @@ export function Space() {
   }, [state]);
 
   const mutate = useCallback(
-    async (path: string, options: { method: string; body?: unknown }) => {
+    async (path: string, options: { method: string; body?: unknown }, { close = true } = {}) => {
       try {
         const s = await api<SpaceState>(path, options);
         setState(s);
-        setSelectedId(null);
+        if (close) setSelectedId(null);
       } catch (e) {
         showToast(e instanceof Error ? e.message : 'Something went wrong.');
         if (e instanceof ApiError && e.status === 410) {
@@ -83,6 +90,30 @@ export function Space() {
       }
     } catch {
       // user dismissed the share sheet
+    }
+  }
+
+  async function toggleNotifications() {
+    if (!pushSupported()) {
+      showToast('Notifications are not supported in this browser.');
+      return;
+    }
+    if (iosNeedsInstall()) {
+      showToast('On iPhone: first add this app to your Home Screen (Share → Add to Home Screen), then enable notifications from the installed app.');
+      return;
+    }
+    try {
+      if (pushOn) {
+        await disablePush();
+        setPushOn(false);
+        showToast('Notifications are off.');
+      } else {
+        await enablePush();
+        setPushOn(true);
+        showToast("You'll be notified when people join, arrive or leave.");
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Could not change notifications.');
     }
   }
 
@@ -126,7 +157,20 @@ export function Space() {
     markArrived: () => mutate(`/api/spaces/${code}/claims/mine`, { method: 'PATCH', body: { status: 'arrived' } }),
     leave: () => mutate(`/api/spaces/${code}/claims/mine`, { method: 'DELETE' }),
     setReleased: (tableId: number, released: boolean) =>
-      mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { released } }),
+      mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { released } }, { close: false }),
+    setCapacity: (tableId: number, capacity: number) =>
+      mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { capacity } }, { close: false }),
+    rotate: (tableId: number) => {
+      const t = tables.find((table) => table.id === tableId);
+      if (!t) return;
+      void mutate(
+        `/api/spaces/${code}/tables/${tableId}`,
+        { method: 'PATCH', body: { rot: t.rot === 0 ? 90 : 0 } },
+        { close: false },
+      );
+    },
+    move: (tableId: number, x: number, y: number) =>
+      mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { x, y } }, { close: false }),
   };
 
   return (
@@ -142,6 +186,13 @@ export function Space() {
             <span className={`live-dot ${connected ? 'on' : 'off'}`} title={connected ? 'Live' : 'Reconnecting…'} />
           </span>
         </div>
+        <button
+          className={`icon-btn${pushOn ? ' icon-btn-active' : ''}`}
+          onClick={() => void toggleNotifications()}
+          aria-label="Notifications"
+        >
+          {pushOn ? '🔔' : '🔕'}
+        </button>
         <button className="icon-btn" onClick={() => void share()} aria-label="Share">
           📤
         </button>
@@ -149,17 +200,16 @@ export function Space() {
 
       <SummaryBar state={state} />
 
-      <div className="table-grid">
-        {tables.map((t) => (
-          <TableCard
-            key={t.id}
-            table={t}
-            seatsPerTable={space.seatsPerTable}
-            currentUserId={user.id}
-            onClick={() => setSelectedId(t.id)}
-          />
-        ))}
-      </div>
+      <Room
+        tables={tables}
+        currentUserId={user.id}
+        canArrange={isOwner}
+        onTap={(id) => setSelectedId(id)}
+        onMove={actions.move}
+      />
+      {isOwner && <p className="hint room-hint">Tap a table to set it up — drag to move it around.</p>}
+
+      <PeopleList tables={tables} />
 
       {isOwner && (
         <button

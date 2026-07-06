@@ -10,10 +10,12 @@ tables nobody needs.
 
 ## Features
 
-- **No-friction accounts** — name + PIN, auto-registered on first sign-in
+- **No-friction accounts** — name + PIN + a personal color, auto-registered on first sign-in
 - **Live sync** — every phone updates instantly via Server-Sent Events
-- **Top-down table view** — seats fill up as people claim them (amber = coming, green = arrived)
-- **Smart summary** — "3 here · 2 coming (next ~09:30) · 2 of 5 tables needed" plus a hint when tables can be given back
+- **Top-down room view** — tables are drawn as split rectangles, one segment per seat, filled with each person's color (outlined = coming, solid = arrived)
+- **Per-table setup** — the owner sets each table's seat count individually, drags tables around the room, and rotates them 90°
+- **Push notifications** — installable PWA; get notified when someone joins, arrives or leaves (on iPhone: add to Home Screen first, then enable — iOS requirement)
+- **Smart summary** — "1 here · 2 coming (next ~16:30) · 5 free seats" plus a hint naming the tables that are still empty
 - **Share codes** — 6-character codes / shareable links per space
 - **Auto-expiry** — spaces close themselves after 16 hours (one study day)
 
@@ -66,8 +68,9 @@ docker compose up -d --build
 | Backend | Node.js + Express (ES modules) |
 | Database | SQLite (`better-sqlite3`), single file in `data/` |
 | Realtime | Server-Sent Events, one channel per space |
+| Push | Web Push (VAPID keys auto-generated into `data/vapid.json`) + service worker |
 | Auth | Username + PIN (bcrypt), HTTP-only cookie sessions (90 days) |
-| Frontend | React 18 + TypeScript + Vite |
+| Frontend | React 18 + TypeScript + Vite, installable PWA |
 
 ### API overview
 
@@ -75,12 +78,15 @@ docker compose up -d --build
 POST   /api/auth/session                       register-or-login {username, pin}
 POST   /api/auth/logout
 GET    /api/auth/me
-POST   /api/spaces                             {name, tableCount, seatsPerTable} → {code}
+POST   /api/spaces                             {name, tableCount, defaultCapacity} → {code}
 GET    /api/spaces/:code                       full space state
 GET    /api/spaces/:code/events                SSE live updates
 POST   /api/spaces/:code/tables/:id/claims     {eta: 'now' | 'HH:MM'} join/move
 PATCH  /api/spaces/:code/claims/mine           {eta} or {status: 'arrived'}
 DELETE /api/spaces/:code/claims/mine           leave
-PATCH  /api/spaces/:code/tables/:id            {released: bool} (owner)
+PATCH  /api/spaces/:code/tables/:id            {released?, capacity?, x?, y?, rot?} (owner)
 PATCH  /api/spaces/:code                       {status: 'closed'} (owner)
+GET    /api/push/key                           VAPID public key
+POST   /api/push/subscribe                     {subscription} enable notifications
+POST   /api/push/unsubscribe                   {endpoint}
 ```
