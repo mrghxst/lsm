@@ -2,6 +2,7 @@ export interface User {
   id: number;
   username: string;
   color: string;
+  isAdmin: boolean;
 }
 
 export interface Claim {

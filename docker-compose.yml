@@ -10,3 +10,5 @@ services:
       - ./data:/app/data
     environment:
       - DATA_DIR=/app/data
+      # Give one account the admin panel (/admin) — set to your username:
+      # - ADMIN_USERNAME=Michael

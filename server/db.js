@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL UNIQUE COLLATE NOCASE,
   pin_hash TEXT NOT NULL,
   color TEXT NOT NULL DEFAULT '',
+  is_admin INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
@@ -101,6 +102,10 @@ if (!hasColumn('users', 'color')) {
   db.exec("ALTER TABLE users ADD COLUMN color TEXT NOT NULL DEFAULT ''");
 }
 
+if (!hasColumn('users', 'is_admin')) {
+  db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+}
+
 if (!hasColumn('tables', 'capacity')) {
   db.exec('ALTER TABLE tables ADD COLUMN capacity INTEGER NOT NULL DEFAULT 2');
   db.exec(`UPDATE tables SET capacity = COALESCE(
@@ -177,3 +182,10 @@ db.exec(`
   INSERT OR IGNORE INTO space_members (space_id, user_id)
     SELECT t.space_id, c.user_id FROM claims c JOIN tables t ON t.id = c.table_id;
 `);
+
+// The account named in ADMIN_USERNAME gets the admin panel (username
+// comparison is case-insensitive via the column's NOCASE collation).
+const adminName = process.env.ADMIN_USERNAME?.trim();
+if (adminName) {
+  db.prepare('UPDATE users SET is_admin = 1 WHERE username = ?').run(adminName);
+}

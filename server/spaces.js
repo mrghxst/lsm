@@ -394,11 +394,10 @@ spacesRouter.delete('/:code/claims/:claimId', (req, res) => {
   sendUpdate(space, res);
 });
 
-// Session manager: add a table.
+// Anyone in the session can add a table.
 spacesRouter.post('/:code/tables', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
-  if (!canManageSpace(space, req.user.id)) return res.status(403).json({ error: 'Only the person who set up the space (or the group owner) can do that.' });
   const tables = db.prepare('SELECT label FROM tables WHERE space_id = ?').all(space.id);
   if (tables.length >= 20) return res.status(409).json({ error: 'Maximum of 20 tables reached.' });
   const maxNum = tables.reduce((m, t) => Math.max(m, Number(/^T(\d+)$/.exec(t.label)?.[1] ?? 0)), 0);
@@ -407,11 +406,10 @@ spacesRouter.post('/:code/tables', (req, res) => {
   sendUpdate(space, res);
 });
 
-// Session manager: remove an empty table entirely.
+// Anyone in the session can remove an empty table.
 spacesRouter.delete('/:code/tables/:tableId', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
-  if (!canManageSpace(space, req.user.id)) return res.status(403).json({ error: 'Only the person who set up the space (or the group owner) can do that.' });
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
   if (!table) return res.status(404).json({ error: 'Table not found.' });
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM claims WHERE table_id = ?').get(table.id);
@@ -420,11 +418,10 @@ spacesRouter.delete('/:code/tables/:tableId', (req, res) => {
   sendUpdate(space, res);
 });
 
-// Session manager: change a table (give back / take back, seats, position, rotation).
+// Anyone in the session can change a table (give back / take back, seats, position, rotation).
 spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
-  if (!canManageSpace(space, req.user.id)) return res.status(403).json({ error: 'Only the person who set up the space (or the group owner) can do that.' });
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
   if (!table) return res.status(404).json({ error: 'Table not found.' });
 
@@ -464,6 +461,22 @@ spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
   db.prepare(`UPDATE tables SET ${setSql} WHERE id = ?`).run(...Object.values(updates), table.id);
   sendUpdate(space, res);
 });
+
+// Delete the whole group forever (owner or admin) — code, members, everything.
+spacesRouter.delete('/:code', (req, res) => {
+  const space = requireSpace(req, res);
+  if (!space) return;
+  if (space.owner_id !== req.user.id && !req.user.is_admin) {
+    return res.status(403).json({ error: 'Only the group owner can delete the space.' });
+  }
+  deleteSpace(space);
+  res.json({ ok: true });
+});
+
+export function deleteSpace(space) {
+  broadcast(space.id, { deleted: true });
+  db.prepare('DELETE FROM spaces WHERE id = ?').run(space.id);
+}
 
 // Sessions are for one study day: auto-end after 16 hours, back to idle.
 export function sweepExpired() {

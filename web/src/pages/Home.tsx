@@ -126,6 +126,14 @@ export function Home() {
           <button className="link-btn" onClick={() => void signOut()}>
             Sign out
           </button>
+          {user.isAdmin && (
+            <>
+              {' · '}
+              <Link to="/admin" className="link-btn">
+                Admin
+              </Link>
+            </>
+          )}
         </p>
       </header>
 

@@ -51,7 +51,12 @@ export function Space() {
       });
     const es = new EventSource(`/api/spaces/${code}/events`);
     es.onmessage = (e) => {
-      setState(JSON.parse(e.data));
+      const data = JSON.parse(e.data);
+      if (data.deleted) {
+        navigate('/', { replace: true });
+        return;
+      }
+      setState(data);
       setConnected(true);
     };
     es.onerror = () => setConnected(false);
@@ -128,8 +133,19 @@ export function Space() {
   }
 
   const { space, tables } = state;
-  const canManage = space.status === 'open' && (space.openedBy === user.id || space.ownerId === user.id);
+  const canManageSession = space.status === 'open' && (space.openedBy === user.id || space.ownerId === user.id);
+  const canDeleteSpace = space.ownerId === user.id || user.isAdmin;
   const selectedTable = tables.find((t) => t.id === selectedId) ?? null;
+
+  async function deleteSpace() {
+    if (!window.confirm(`Delete “${space.name}” forever? The code stops working for everyone.`)) return;
+    try {
+      await api(`/api/spaces/${code}`, { method: 'DELETE' });
+      navigate('/', { replace: true });
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Could not delete the space.');
+    }
+  }
 
   const header = (
     <header className="top-bar">
@@ -185,6 +201,11 @@ export function Space() {
               🌅 Set up the space
             </button>
           </div>
+          {canDeleteSpace && (
+            <button className="btn btn-danger" onClick={() => void deleteSpace()}>
+              Delete this space forever
+            </button>
+          )}
         </div>
         {toast && <div className="toast">{toast}</div>}
       </div>
@@ -223,28 +244,20 @@ export function Space() {
 
       <SummaryBar state={state} />
 
-      <Room
-        tables={tables}
-        currentUserId={user.id}
-        canArrange={canManage}
-        onTap={(id) => setSelectedId(id)}
-        onMove={actions.move}
-      />
-      {canManage && (
-        <div className="room-toolbar">
-          <p className="hint room-hint">Tap a table to set it up — drag to move it.</p>
-          <button
-            className="btn btn-secondary btn-compact"
-            onClick={() => void mutate(`/api/spaces/${code}/tables`, { method: 'POST' }, { close: false })}
-          >
-            ➕ Add table
-          </button>
-        </div>
-      )}
+      <Room tables={tables} currentUserId={user.id} onTap={(id) => setSelectedId(id)} onMove={actions.move} />
+      <div className="room-toolbar">
+        <p className="hint room-hint">Tap a table to set it up — drag to move it, pinch or scroll to zoom.</p>
+        <button
+          className="btn btn-secondary btn-compact"
+          onClick={() => void mutate(`/api/spaces/${code}/tables`, { method: 'POST' }, { close: false })}
+        >
+          ➕ Add table
+        </button>
+      </div>
 
       <PeopleList tables={tables} />
 
-      {canManage && (
+      {canManageSession && (
         <button
           className="btn btn-danger end-space"
           onClick={() => {
@@ -262,7 +275,7 @@ export function Space() {
           state={state}
           table={selectedTable}
           userId={user.id}
-          canManage={canManage}
+          canManageClaims={canManageSession}
           onClose={() => setSelectedId(null)}
           actions={actions}
         />

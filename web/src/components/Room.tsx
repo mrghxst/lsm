@@ -1,9 +1,29 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Claim, Table } from '../types';
 
-function clamp(v: number) {
+const MIN_SCALE = 1;
+const MAX_SCALE = 3;
+
+function clampPos(v: number) {
   return Math.min(0.94, Math.max(0.06, v));
+}
+
+interface View {
+  scale: number;
+  tx: number;
+  ty: number;
+}
+
+// Keep the canvas covering the viewport: translation may never expose
+// space beyond the room's edges.
+function clampView(view: View, w: number, h: number): View {
+  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale));
+  return {
+    scale,
+    tx: Math.min(0, Math.max(w * (1 - scale), view.tx)),
+    ty: Math.min(0, Math.max(h * (1 - scale), view.ty)),
+  };
 }
 
 function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
@@ -28,32 +48,128 @@ interface DragInfo {
   moved: boolean;
 }
 
+type Gesture =
+  | { type: 'pan'; startX: number; startY: number; origTx: number; origTy: number }
+  | { type: 'pinch'; startDist: number; startScale: number; midX: number; midY: number; origTx: number; origTy: number };
+
 export function Room({
   tables,
   currentUserId,
-  canArrange,
   onTap,
   onMove,
 }: {
   tables: Table[];
   currentUserId: number;
-  canArrange: boolean;
   onTap(id: number): void;
   onMove(id: number, x: number, y: number): void;
 }) {
-  const roomRef = useRef<HTMLDivElement>(null);
+  const outerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<View>({ scale: 1, tx: 0, ty: 0 });
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<Gesture | null>(null);
   const dragRef = useRef<DragInfo | null>(null);
   const [live, setLive] = useState<{ id: number; x: number; y: number } | null>(null);
 
+  function zoomAt(px: number, py: number, newScale: number) {
+    const rect = outerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const v = viewRef.current;
+    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, newScale));
+    const cx = (px - v.tx) / v.scale;
+    const cy = (py - v.ty) / v.scale;
+    setView(clampView({ scale, tx: px - cx * scale, ty: py - cy * scale }, rect.width, rect.height));
+  }
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      zoomAt(e.clientX - rect.left, e.clientY - rect.top, viewRef.current.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // ----- background: pan with one finger, pinch-zoom with two -----
+
+  function bgPointerDown(e: ReactPointerEvent) {
+    if ((e.target as HTMLElement).closest('.rtable')) return; // tables drag themselves
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try {
+      outerRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      // synthetic events may not carry a real pointer
+    }
+    const v = viewRef.current;
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      gesture.current = {
+        type: 'pinch',
+        startDist: Math.hypot(a.x - b.x, a.y - b.y),
+        startScale: v.scale,
+        midX: (a.x + b.x) / 2,
+        midY: (a.y + b.y) / 2,
+        origTx: v.tx,
+        origTy: v.ty,
+      };
+    } else {
+      gesture.current = { type: 'pan', startX: e.clientX, startY: e.clientY, origTx: v.tx, origTy: v.ty };
+    }
+  }
+
+  function bgPointerMove(e: ReactPointerEvent) {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current;
+    const rect = outerRef.current?.getBoundingClientRect();
+    if (!g || !rect) return;
+    if (g.type === 'pan') {
+      setView(
+        clampView(
+          { scale: viewRef.current.scale, tx: g.origTx + e.clientX - g.startX, ty: g.origTy + e.clientY - g.startY },
+          rect.width,
+          rect.height,
+        ),
+      );
+    } else if (pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, (g.startScale * Math.hypot(a.x - b.x, a.y - b.y)) / g.startDist));
+      const px = g.midX - rect.left;
+      const py = g.midY - rect.top;
+      const cx = (px - g.origTx) / g.startScale;
+      const cy = (py - g.origTy) / g.startScale;
+      setView(clampView({ scale, tx: px - cx * scale, ty: py - cy * scale }, rect.width, rect.height));
+    }
+  }
+
+  function bgPointerUp(e: ReactPointerEvent) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size === 0) {
+      gesture.current = null;
+    } else if (pointers.current.size === 1) {
+      const [p] = [...pointers.current.values()];
+      const v = viewRef.current;
+      gesture.current = { type: 'pan', startX: p.x, startY: p.y, origTx: v.tx, origTy: v.ty };
+    }
+  }
+
+  // ----- tables: tap to open, drag to move -----
+
   function finalPos(d: DragInfo, e: ReactPointerEvent) {
-    const rect = roomRef.current!.getBoundingClientRect();
+    const rect = canvasRef.current!.getBoundingClientRect(); // scaled size
     return {
-      x: clamp(d.origX + (e.clientX - d.startX) / rect.width),
-      y: clamp(d.origY + (e.clientY - d.startY) / rect.height),
+      x: clampPos(d.origX + (e.clientX - d.startX) / rect.width),
+      y: clampPos(d.origY + (e.clientY - d.startY) / rect.height),
     };
   }
 
   function onPointerDown(e: ReactPointerEvent, t: Table) {
+    e.stopPropagation();
     dragRef.current = { id: t.id, startX: e.clientX, startY: e.clientY, origX: t.x, origY: t.y, moved: false };
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -64,10 +180,9 @@ export function Room({
 
   function onPointerMove(e: ReactPointerEvent) {
     const d = dragRef.current;
-    if (!d || !roomRef.current) return;
+    if (!d || !canvasRef.current) return;
     if (!d.moved) {
       if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 8) return;
-      if (!canArrange) return; // only the owner rearranges tables
       d.moved = true;
     }
     setLive({ id: d.id, ...finalPos(d, e) });
@@ -91,50 +206,76 @@ export function Room({
     setLive(null);
   }
 
+  function buttonZoom(factor: number) {
+    const rect = outerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    zoomAt(rect.width / 2, rect.height / 2, viewRef.current.scale * factor);
+  }
+
   return (
-    <div className="room" ref={roomRef}>
-      {tables.map((t) => {
-        const pos = live?.id === t.id ? live : { x: t.x, y: t.y };
-        const horizontal = t.rot === 0;
-        const mine = t.claims.some((c) => c.userId === currentUserId && !c.guestName);
-        return (
-          <div
-            key={t.id}
-            className={
-              'rtable' +
-              (mine ? ' mine' : '') +
-              (t.released ? ' released' : '') +
-              (live?.id === t.id ? ' dragging' : '')
-            }
-            style={{
-              left: `${pos.x * 100}%`,
-              top: `${pos.y * 100}%`,
-              width: horizontal ? '40%' : '20%',
-              aspectRatio: horizontal ? '2 / 1' : '1 / 2',
-              touchAction: canArrange ? 'none' : undefined,
-            }}
-            onPointerDown={(e) => onPointerDown(e, t)}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerCancel}
-          >
-            <span className="rtable-tag">{t.label}</span>
-            {t.released ? (
-              <span className="rtable-released">given back</span>
-            ) : (
-              <div className={`segments ${horizontal ? 'srow' : 'scol'}`}>
-                {Array.from({ length: t.capacity }, (_, i) => (
-                  <Segment
-                    key={i}
-                    claim={t.claims[i]}
-                    mine={t.claims[i]?.userId === currentUserId && !t.claims[i]?.guestName}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+    <div
+      className="room"
+      ref={outerRef}
+      onPointerDown={bgPointerDown}
+      onPointerMove={bgPointerMove}
+      onPointerUp={bgPointerUp}
+      onPointerCancel={bgPointerUp}
+    >
+      <div
+        className="room-canvas"
+        ref={canvasRef}
+        style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}
+      >
+        {tables.map((t) => {
+          const pos = live?.id === t.id ? live : { x: t.x, y: t.y };
+          const horizontal = t.rot === 0;
+          const mine = t.claims.some((c) => c.userId === currentUserId && !c.guestName);
+          return (
+            <div
+              key={t.id}
+              className={
+                'rtable' +
+                (mine ? ' mine' : '') +
+                (t.released ? ' released' : '') +
+                (live?.id === t.id ? ' dragging' : '')
+              }
+              style={{
+                left: `${pos.x * 100}%`,
+                top: `${pos.y * 100}%`,
+                width: horizontal ? '40%' : '20%',
+                aspectRatio: horizontal ? '2 / 1' : '1 / 2',
+              }}
+              onPointerDown={(e) => onPointerDown(e, t)}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerCancel}
+            >
+              <span className="rtable-tag">{t.label}</span>
+              {t.released ? (
+                <span className="rtable-released">given back</span>
+              ) : (
+                <div className={`segments ${horizontal ? 'srow' : 'scol'}`}>
+                  {Array.from({ length: t.capacity }, (_, i) => (
+                    <Segment
+                      key={i}
+                      claim={t.claims[i]}
+                      mine={t.claims[i]?.userId === currentUserId && !t.claims[i]?.guestName}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="zoom-controls">
+        <button className="zoom-btn" onClick={() => buttonZoom(1.3)} aria-label="Zoom in">
+          ＋
+        </button>
+        <button className="zoom-btn" onClick={() => buttonZoom(1 / 1.3)} aria-label="Zoom out">
+          −
+        </button>
+      </div>
     </div>
   );
 }

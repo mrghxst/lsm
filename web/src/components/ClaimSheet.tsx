@@ -19,14 +19,14 @@ export function ClaimSheet({
   state,
   table,
   userId,
-  canManage,
+  canManageClaims,
   onClose,
   actions,
 }: {
   state: SpaceState;
   table: Table;
   userId: number;
-  canManage: boolean;
+  canManageClaims: boolean;
   onClose(): void;
   actions: Actions;
 }) {
@@ -42,7 +42,7 @@ export function ClaimSheet({
   const [guestEta, setGuestEta] = useState('now');
 
   const manageableOthers = table.claims.filter(
-    (c) => c !== myClaimHere && (c.userId === userId || canManage),
+    (c) => c !== myClaimHere && (c.userId === userId || canManageClaims),
   );
 
   let body;
@@ -78,7 +78,7 @@ export function ClaimSheet({
       </>
     );
   } else if (table.released) {
-    body = <p className="sheet-status">This table was given back{canManage ? '.' : ' — pick another one.'}</p>;
+    body = <p className="sheet-status">This table was given back.</p>;
   } else if (isFull) {
     body = <p className="sheet-status">This table is full — pick another one.</p>;
   } else if (!guestMode) {
@@ -166,9 +166,8 @@ export function ClaimSheet({
             </div>
           )}
 
-          {canManage && (
-            <div className="sheet-section">
-              <p className="sheet-label">Table settings</p>
+          <div className="sheet-section">
+            <p className="sheet-label">Table settings</p>
               {!table.released && (
                 <Stepper
                   small
@@ -197,13 +196,12 @@ export function ClaimSheet({
                   )
                 )}
               </div>
-              {table.claims.length === 0 && (
-                <button className="btn btn-danger" onClick={() => actions.removeTable(table.id)}>
-                  Remove this table
-                </button>
-              )}
-            </div>
-          )}
+            {table.claims.length === 0 && (
+              <button className="btn btn-danger" onClick={() => actions.removeTable(table.id)}>
+                Remove this table
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -22,7 +22,17 @@ function setSessionCookie(req, res, userId) {
 }
 
 function publicUser(user) {
-  return { id: user.id, username: user.username, color: colorFor(user) };
+  return { id: user.id, username: user.username, color: colorFor(user), isAdmin: !!user.is_admin };
+}
+
+// Grant admin at sign-in time too, so ADMIN_USERNAME works even when the
+// account is registered after the server started.
+function applyAdminGrant(user) {
+  const adminName = process.env.ADMIN_USERNAME?.trim();
+  if (adminName && !user.is_admin && user.username.toLowerCase() === adminName.toLowerCase()) {
+    db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(user.id);
+    user.is_admin = 1;
+  }
 }
 
 // Single register-or-login flow: unknown name creates an account,
@@ -48,6 +58,7 @@ authRouter.post('/session', (req, res) => {
       db.prepare('UPDATE users SET color = ? WHERE id = ?').run(color, existing.id);
       existing.color = color;
     }
+    applyAdminGrant(existing);
     setSessionCookie(req, res, existing.id);
     return res.json({ user: publicUser(existing), created: false });
   }
@@ -58,6 +69,7 @@ authRouter.post('/session', (req, res) => {
     isValidColor(color) ? color : '',
   );
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+  applyAdminGrant(user);
   setSessionCookie(req, res, user.id);
   res.json({ user: publicUser(user), created: true });
 });
@@ -90,5 +102,10 @@ export function requireAuth(req, res, next) {
   const user = getSessionUser(req);
   if (!user) return res.status(401).json({ error: 'Not signed in.' });
   req.user = user;
+  next();
+}
+
+export function requireAdmin(req, res, next) {
+  if (!req.user?.is_admin) return res.status(403).json({ error: 'Admins only.' });
   next();
 }

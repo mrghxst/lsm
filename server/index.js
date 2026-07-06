@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { db } from './db.js';
 import { authRouter, requireAuth } from './auth.js';
 import { spacesRouter, sweepExpired, listUserSpaces } from './spaces.js';
+import { adminRouter } from './admin.js';
 import { vapidPublicKey, saveSubscription, removeSubscription } from './push.js';
 
 const app = express();
@@ -15,6 +16,7 @@ app.use(cookieParser());
 
 app.use('/api/auth', authRouter);
 app.use('/api/spaces', spacesRouter);
+app.use('/api/admin', adminRouter);
 
 app.get('/api/me/spaces', requireAuth, (req, res) => res.json({ spaces: listUserSpaces(req.user.id) }));
 
