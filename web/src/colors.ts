@@ -1,13 +1,13 @@
-// Keep in sync with server/colors.js
+// Keep in sync with server/colors.js — rainbow order
 export const PALETTE = [
-  '#4f8cff', // blue
-  '#34c77b', // green
-  '#f5a623', // amber
   '#ef5563', // red
-  '#b06ef7', // purple
-  '#3ec8c8', // teal
   '#ff8a5c', // orange
-  '#e959b4', // pink
-  '#8a94ff', // indigo
+  '#f5a623', // amber
   '#9fd63b', // lime
+  '#34c77b', // green
+  '#3ec8c8', // teal
+  '#4f8cff', // blue
+  '#8a94ff', // indigo
+  '#b06ef7', // purple
+  '#e959b4', // pink
 ];

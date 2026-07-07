@@ -21,7 +21,7 @@ export function Space() {
   const [pushOn, setPushOn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [setupTables, setSetupTables] = useState(4);
-  const [setupSeats, setSetupSeats] = useState(2);
+  const [setupSeats, setSetupSeats] = useState(1);
   const toastTimer = useRef<number>();
 
   const showToast = useCallback((msg: string) => {

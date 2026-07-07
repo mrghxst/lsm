@@ -10,7 +10,7 @@ export function CreateSpace() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [tableCount, setTableCount] = useState(4);
-  const [defaultCapacity, setDefaultCapacity] = useState(2);
+  const [defaultCapacity, setDefaultCapacity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

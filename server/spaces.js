@@ -188,7 +188,7 @@ function createTables(spaceId, tableCount, capacity) {
 
 function validateSessionParams(req, res) {
   const tableCount = Number(req.body?.tableCount);
-  const defaultCapacity = req.body?.defaultCapacity === undefined ? 2 : Number(req.body?.defaultCapacity);
+  const defaultCapacity = req.body?.defaultCapacity === undefined ? 1 : Number(req.body?.defaultCapacity);
   if (!Number.isInteger(tableCount) || tableCount < 1 || tableCount > 20) {
     res.status(400).json({ error: 'Number of tables must be between 1 and 20.' });
     return null;
@@ -401,7 +401,7 @@ spacesRouter.post('/:code/tables', (req, res) => {
   const tables = db.prepare('SELECT label FROM tables WHERE space_id = ?').all(space.id);
   if (tables.length >= 20) return res.status(409).json({ error: 'Maximum of 20 tables reached.' });
   const maxNum = tables.reduce((m, t) => Math.max(m, Number(/^T(\d+)$/.exec(t.label)?.[1] ?? 0)), 0);
-  db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 2, 0.5, 0.5)')
+  db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 1, 0.5, 0.5)')
     .run(space.id, `T${maxNum + 1}`);
   sendUpdate(space, res);
 });
