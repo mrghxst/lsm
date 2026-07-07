@@ -93,7 +93,11 @@ export function getSpaceState(code) {
 
 export function listUserSpaces(userId) {
   const rows = db.prepare(`
-    SELECT s.*, o.username AS owner_name, op.username AS opened_by_name
+    SELECT s.*, o.username AS owner_name, op.username AS opened_by_name,
+      (SELECT COALESCE(SUM(t.capacity), 0) FROM tables t
+        WHERE t.space_id = s.id AND t.released = 0) AS seats,
+      (SELECT COUNT(*) FROM claims c JOIN tables t ON t.id = c.table_id
+        WHERE t.space_id = s.id AND t.released = 0) AS people
     FROM space_members m
     JOIN spaces s ON s.id = m.space_id
     JOIN users o ON o.id = s.owner_id
@@ -101,26 +105,16 @@ export function listUserSpaces(userId) {
     WHERE m.user_id = ?
     ORDER BY (s.status = 'open') DESC, m.joined_at DESC
   `).all(userId);
-  const seatStat = db.prepare('SELECT COALESCE(SUM(capacity), 0) AS seats FROM tables WHERE space_id = ? AND released = 0');
-  const peopleStat = db.prepare(`
-    SELECT COUNT(*) AS people FROM claims c
-    JOIN tables t ON t.id = c.table_id
-    WHERE t.space_id = ? AND t.released = 0
-  `);
-  return rows.map((s) => {
-    const { seats } = seatStat.get(s.id);
-    const { people } = peopleStat.get(s.id);
-    return {
-      code: s.code,
-      name: s.name,
-      status: s.status,
-      ownerName: s.owner_name,
-      openedByName: s.opened_by_name,
-      totalSeats: seats,
-      peopleCount: people,
-      freeSeats: Math.max(0, seats - people),
-    };
-  });
+  return rows.map((s) => ({
+    code: s.code,
+    name: s.name,
+    status: s.status,
+    ownerName: s.owner_name,
+    openedByName: s.opened_by_name,
+    totalSeats: s.seats,
+    peopleCount: s.people,
+    freeSeats: Math.max(0, s.seats - s.people),
+  }));
 }
 
 // Which compartment a newcomer gets: the tapped one if it is free,
