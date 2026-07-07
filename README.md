@@ -11,14 +11,14 @@ keeps the group, its code and its members for tomorrow.
 
 ## Features
 
-- **No-friction accounts** — name + PIN + a personal color, auto-registered on first sign-in
+- **No-friction accounts** — name + PIN + a personal color; registering needs a one-time invite code from an admin (the first account and `ADMIN_USERNAME` bootstrap without one)
 - **Live sync** — every phone updates instantly via Server-Sent Events
 - **Top-down room view** — tables are drawn as split rectangles, one segment per seat, filled with each person's color (outlined = coming, solid = arrived)
 - **Collaborative table setup** — everyone in the session can add/remove tables, set seat counts, drag tables around the room and rotate them 90°; the room canvas pans and zooms (pinch or scroll) for big layouts
 - **Guest seats** — reserve a seat for a friend without the app, shown as "friend of ‹member›"
 - **Push notifications** — installable PWA; the whole group is notified when someone sets up the space in the morning, participants when people join/arrive/leave (on iPhone: add to Home Screen first, then enable — iOS requirement)
 - **Smart summary** — "1 here · 2 coming (next ~16:30) · 5 free seats"
-- **Admin panel** — the account named in `ADMIN_USERNAME` sees all spaces and users at `/admin` and can delete either (e.g. offensive names)
+- **Admin panel** — the account named in `ADMIN_USERNAME` sees all spaces and users at `/admin`, can delete either (e.g. offensive names), and generates the one-time invite codes new members need to register
 - **Persistent groups** — 6-character codes / shareable links that stay valid; your home screen shows each group's live status
 - **Auto-reset** — sessions end themselves after 16 hours (one study day); the group stays
 
@@ -81,7 +81,7 @@ docker compose up -d --build
 ### API overview
 
 ```
-POST   /api/auth/session                       register-or-login {username, pin}
+POST   /api/auth/session                       register-or-login {username, pin, color?, inviteCode?}
 POST   /api/auth/logout
 GET    /api/auth/me
 POST   /api/spaces                             {name, tableCount, defaultCapacity} → {code} (create group + first session)

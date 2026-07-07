@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { db } from './db.js';
 import { requireAuth, requireAdmin } from './auth.js';
 import { colorFor } from './colors.js';
@@ -6,6 +7,15 @@ import { deleteSpace } from './spaces.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth, requireAdmin);
+
+// Same no-lookalike alphabet as the space share codes.
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function newInviteCode() {
+  let code = '';
+  for (let i = 0; i < 6; i++) code += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
+  return code;
+}
 
 adminRouter.get('/overview', (req, res) => {
   const users = db.prepare(`
@@ -22,6 +32,12 @@ adminRouter.get('/overview', (req, res) => {
     JOIN users o ON o.id = s.owner_id
     LEFT JOIN users op ON op.id = s.opened_by
     ORDER BY (s.status = 'open') DESC, s.created_at DESC
+  `).all();
+  const invites = db.prepare(`
+    SELECT i.code, i.created_at, i.used_at, u.username AS used_by_name
+    FROM invite_codes i
+    LEFT JOIN users u ON u.id = i.used_by
+    ORDER BY (i.used_at IS NULL) DESC, i.created_at DESC
   `).all();
   res.json({
     users: users.map((u) => ({
@@ -43,7 +59,30 @@ adminRouter.get('/overview', (req, res) => {
       peopleCount: s.people_count,
       createdAt: s.created_at,
     })),
+    invites: invites.map((i) => ({
+      code: i.code,
+      createdAt: i.created_at,
+      usedAt: i.used_at,
+      usedByName: i.used_by_name,
+    })),
   });
+});
+
+// Mint a one-time registration code to hand to a new member.
+adminRouter.post('/invites', (req, res) => {
+  let code = newInviteCode();
+  while (db.prepare('SELECT 1 FROM invite_codes WHERE code = ?').get(code)) code = newInviteCode();
+  db.prepare('INSERT INTO invite_codes (code, created_by) VALUES (?, ?)').run(code, req.user.id);
+  res.json({ code });
+});
+
+// Revoke a code nobody has used yet.
+adminRouter.delete('/invites/:code', (req, res) => {
+  const info = db
+    .prepare('DELETE FROM invite_codes WHERE code = ? AND used_at IS NULL')
+    .run(String(req.params.code).toUpperCase());
+  if (info.changes === 0) return res.status(404).json({ error: 'Code not found (or already used).' });
+  res.json({ ok: true });
 });
 
 // Delete a user account (e.g. an offensive name). Their claims, guest

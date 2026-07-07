@@ -103,12 +103,45 @@ authRouter.post('/session', (req, res) => {
     return res.json({ user: publicUser(existing), created: false });
   }
 
-  const info = db.prepare('INSERT INTO users (username, pin_hash, color) VALUES (?, ?, ?)').run(
-    username,
-    bcrypt.hashSync(pin, 10),
-    isValidColor(color) ? color : '',
-  );
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+  // New accounts need a one-time invite code from an admin. Two bootstrap
+  // exceptions so a fresh install cannot lock itself out: the very first
+  // account, and the account named in ADMIN_USERNAME.
+  const adminName = process.env.ADMIN_USERNAME?.trim();
+  const isBootstrap =
+    db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0 ||
+    (!!adminName && username.toLowerCase() === adminName.toLowerCase());
+  const inviteCode = String(req.body?.inviteCode ?? '').trim().toUpperCase();
+  if (!isBootstrap && !inviteCode) {
+    return res.status(403).json({ error: 'This name is new here — ask an admin for a one-time invite code to register.' });
+  }
+
+  let user;
+  try {
+    // Redeeming the code and creating the account happen in one
+    // transaction, so a code can never be burned without an account
+    // and two people cannot register on the same code.
+    user = db.transaction(() => {
+      const info = db.prepare('INSERT INTO users (username, pin_hash, color) VALUES (?, ?, ?)').run(
+        username,
+        bcrypt.hashSync(pin, 10),
+        isValidColor(color) ? color : '',
+      );
+      if (!isBootstrap) {
+        const redeemed = db
+          .prepare('UPDATE invite_codes SET used_by = ?, used_at = unixepoch() WHERE code = ? AND used_at IS NULL')
+          .run(info.lastInsertRowid, inviteCode);
+        if (redeemed.changes === 0) {
+          const err = new Error('That invite code is not valid (or was already used).');
+          err.status = 403;
+          throw err;
+        }
+      }
+      return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+    })();
+  } catch (e) {
+    if (!e.status) throw e;
+    return res.status(e.status).json({ error: e.message });
+  }
   applyAdminGrant(user);
   setSessionCookie(req, res, user.id);
   res.json({ user: publicUser(user), created: true });
