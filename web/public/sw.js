@@ -17,6 +17,10 @@ self.addEventListener('push', (e) => {
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
       tag: data.tag,
+      // Same-tag notifications silently replace the one in the tray unless
+      // renotify is set — without it only the first push of the day makes a
+      // sound. (Chrome rejects renotify without a tag, hence the guard.)
+      renotify: !!data.tag,
       data: { url: data.url || '/' },
     }),
   );
