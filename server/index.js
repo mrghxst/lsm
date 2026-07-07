@@ -69,6 +69,9 @@ function renderIndex(template, req) {
     `<meta property="og:description" content="${escapeHtml(description)}" />`,
     `<meta property="og:url" content="${escapeHtml(base + req.path)}" />`,
     `<meta property="og:image" content="${escapeHtml(base)}/icons/icon-512.png" />`,
+    '<meta property="og:image:type" content="image/png" />',
+    '<meta property="og:image:width" content="512" />',
+    '<meta property="og:image:height" content="512" />',
     '<meta name="twitter:card" content="summary" />',
     `<meta name="description" content="${escapeHtml(description)}" />`,
   ].join('\n    ');
