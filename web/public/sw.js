@@ -26,6 +26,42 @@ self.addEventListener('push', (e) => {
   );
 });
 
+// Push services rotate/expire subscriptions from time to time. When that
+// happens the server's next send gets a 410 and it forgets the endpoint —
+// without this handler the user silently stops getting notifications until
+// they toggle them off and on again. Re-subscribe and tell the server
+// (the session cookie rides along on same-origin fetches).
+function urlBase64ToUint8Array(base64) {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+self.addEventListener('pushsubscriptionchange', (e) => {
+  e.waitUntil(
+    fetch('/api/push/key')
+      .then((r) => r.json())
+      .then(({ key }) =>
+        self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key),
+        }),
+      )
+      .then((sub) =>
+        fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: sub.toJSON() }),
+        }),
+      )
+      .catch(() => {
+        // signed out or permission revoked — the user re-enables manually
+      }),
+  );
+});
+
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const url = e.notification.data?.url || '/';
