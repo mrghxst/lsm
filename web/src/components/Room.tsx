@@ -123,6 +123,11 @@ export function Room({
   }
 
   function bgPointerDown(e: ReactPointerEvent) {
+    // Let the zoom controls handle their own clicks. Capturing the pointer
+    // here retargets the mouse's compatibility click to the room, so on
+    // desktop the buttons would never fire (touch synthesizes the click
+    // from the tap, which is why it only broke with a mouse).
+    if ((e.target as HTMLElement).closest('.zoom-controls')) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const onTable = (e.target as HTMLElement).closest('.rtable');
     if (!onTable) {
