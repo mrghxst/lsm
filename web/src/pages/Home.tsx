@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { useAuth } from '../AuthContext';
 import { PALETTE } from '../colors';
 import type { GroupSummary } from '../types';
@@ -19,6 +19,8 @@ export function Home() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inviteNeeded, setInviteNeeded] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
 
@@ -34,11 +36,14 @@ export function Home() {
     setBusy(true);
     setError(null);
     try {
-      await signIn(username.trim(), pin, color);
+      await signIn(username.trim(), pin, color, inviteCode.trim() || undefined);
       localStorage.setItem('lsm.lastName', username.trim());
       localStorage.setItem('lsm.lastColor', color);
       if (next) navigate(next);
     } catch (err) {
+      // 403 = this is a new name and registration needs an admin's
+      // one-time invite code: reveal the field for it.
+      if (err instanceof ApiError && err.status === 403) setInviteNeeded(true);
       setError(err instanceof Error ? err.message : 'Sign-in failed.');
     } finally {
       setBusy(false);
@@ -106,11 +111,29 @@ export function Home() {
               ))}
             </div>
           </div>
+          {inviteNeeded && (
+            <label className="field">
+              <span>Invite code</span>
+              <input
+                className="input input-code"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                placeholder="e.g. K3XF7Q"
+                maxLength={6}
+                autoCapitalize="characters"
+                autoCorrect="off"
+              />
+            </label>
+          )}
           {error && <p className="error">{error}</p>}
           <button className="btn btn-primary" disabled={busy}>
             {busy ? '…' : "Let's go"}
           </button>
-          <p className="hint">New name? An account is created automatically. Same name + PIN signs you back in.</p>
+          <p className="hint">
+            {inviteNeeded
+              ? 'New accounts need a one-time invite code — ask the person who runs this server.'
+              : 'New name? An account is created automatically. Same name + PIN signs you back in.'}
+          </p>
         </form>
       </div>
     );

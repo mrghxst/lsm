@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- One-time registration codes handed out by admins. used_at (not used_by)
+-- marks redemption, so a code stays spent even if the account it created
+-- is deleted later.
+CREATE TABLE IF NOT EXISTS invite_codes (
+  code TEXT PRIMARY KEY,
+  created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  used_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  used_at INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_tables_space ON tables(space_id);
 CREATE INDEX IF NOT EXISTS idx_claims_table ON claims(table_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_expiry ON auth_tokens(expires_at);

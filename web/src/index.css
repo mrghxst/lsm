@@ -958,6 +958,15 @@ body {
   color: var(--accent);
 }
 
+.invite-code {
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.invite-used {
+  opacity: 0.55;
+}
+
 /* ---------- misc ---------- */
 
 .sheet-owner {

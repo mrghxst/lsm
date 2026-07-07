@@ -24,9 +24,17 @@ interface AdminSpace {
   createdAt: number;
 }
 
+interface AdminInvite {
+  code: string;
+  createdAt: number;
+  usedAt: number | null;
+  usedByName: string | null;
+}
+
 interface Overview {
   users: AdminUser[];
   spaces: AdminSpace[];
+  invites: AdminInvite[];
 }
 
 function formatDate(unix: number) {
@@ -60,6 +68,24 @@ export function Admin() {
     }
   }
 
+  async function generateInvite() {
+    try {
+      await api<{ code: string }>('/api/admin/invites', { method: 'POST' });
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create a code.');
+    }
+  }
+
+  async function revokeInvite(code: string) {
+    try {
+      await api(`/api/admin/invites/${code}`, { method: 'DELETE' });
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not revoke the code.');
+    }
+  }
+
   async function deleteUser(u: AdminUser) {
     if (!window.confirm(`Delete user “${u.username}”? Their seats, guest reservations and memberships are removed — and any spaces they own are deleted entirely.`)) return;
     try {
@@ -87,6 +113,32 @@ export function Admin() {
 
       {data && (
         <div className="stack">
+          <div className="card stack">
+            <h2 className="section-title">Invite codes</h2>
+            <p className="hint">New people need one of these one-time codes to create an account.</p>
+            {data.invites.length === 0 && <p className="hint">No codes yet — generate one to invite someone.</p>}
+            {data.invites.map((i) => (
+              <div key={i.code} className={`occupant-row admin-row${i.usedAt ? ' invite-used' : ''}`}>
+                <span className="group-main">
+                  <span className="recent-name invite-code">{i.code}</span>
+                  <span className="group-sub">
+                    {i.usedAt
+                      ? `used by ${i.usedByName ?? 'a deleted account'} · ${formatDate(i.usedAt)}`
+                      : `created ${formatDate(i.createdAt)} · unused`}
+                  </span>
+                </span>
+                {!i.usedAt && (
+                  <button className="occupant-btn danger" title="Revoke code" onClick={() => void revokeInvite(i.code)}>
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            <button className="btn btn-secondary" onClick={() => void generateInvite()}>
+              ➕ Generate invite code
+            </button>
+          </div>
+
           <div className="card stack">
             <h2 className="section-title">
               Spaces ({data.spaces.filter((s) => s.status === 'open').length} active / {data.spaces.length})
