@@ -34,7 +34,11 @@ export function notifyUsers(userIds, payload) {
   const subs = db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`).all(...userIds);
   const data = JSON.stringify(payload);
   for (const row of subs) {
-    webpush.sendNotification(JSON.parse(row.subscription), data).catch((err) => {
+    // High urgency so Android/Chrome (which delivers web push via FCM) wakes
+    // the device and shows it now. Without this the Web Push default urgency is
+    // "normal", which Android holds in Doze until the phone next wakes on its
+    // own — so notifications arrive late or not at all.
+    webpush.sendNotification(JSON.parse(row.subscription), data, { urgency: 'high' }).catch((err) => {
       // 404/410 = the browser dropped this subscription; forget it.
       if (err.statusCode === 404 || err.statusCode === 410) {
         db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(row.endpoint);
