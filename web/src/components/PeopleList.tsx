@@ -1,7 +1,9 @@
 import type { Table } from '../types';
-import { claimColor, etaLabel } from '../util';
+import { claimColor, etaLabel, formatDuration } from '../util';
+import { useNowMinute } from '../useNow';
 
 export function PeopleList({ tables }: { tables: Table[] }) {
+  const now = useNowMinute();
   const rows = tables.flatMap((t) => t.claims.map((c) => ({ ...c, tableLabel: t.label })));
   if (rows.length === 0) return null;
   rows.sort((a, b) => {
@@ -20,7 +22,13 @@ export function PeopleList({ tables }: { tables: Table[] }) {
               {r.guestName && <span className="occupant-sub"> · friend of {r.username}</span>}
             </span>
             <span className="person-table">{r.tableLabel}</span>
-            <span className="person-eta">{r.status === 'arrived' ? 'here 🎉' : etaLabel(r.eta)}</span>
+            <span className="person-eta">
+              {r.status === 'arrived'
+                ? r.arrivedAt
+                  ? `here · ${formatDuration(r.arrivedAt, now)}`
+                  : 'here 🎉'
+                : etaLabel(r.eta)}
+            </span>
           </li>
         ))}
       </ul>

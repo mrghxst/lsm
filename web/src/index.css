@@ -314,6 +314,37 @@ body {
   text-align: center;
 }
 
+.stat-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  color: inherit;
+  padding: 4px 2px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.stat-btn .stat-label {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.stat-btn.active {
+  background: var(--card-2);
+}
+
+.stat-btn.active .stat-label {
+  color: var(--accent);
+}
+
+.summary-detail {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  max-height: 210px;
+  overflow-y: auto;
+}
+
 .stat-value {
   font-size: 24px;
   font-weight: 700;

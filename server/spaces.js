@@ -86,6 +86,7 @@ export function getSpaceState(code) {
           seat: c.seat,
           eta: c.eta,
           status: c.status,
+          arrivedAt: c.arrived_at,
         })),
     })),
   };
@@ -309,8 +310,8 @@ spacesRouter.post('/:code/tables/:tableId/claims', (req, res) => {
       throw err;
     }
     const status = eta === 'now' ? 'arrived' : 'coming';
-    db.prepare('INSERT INTO claims (table_id, user_id, seat, eta, status) VALUES (?, ?, ?, ?, ?)')
-      .run(table.id, req.user.id, seat, eta, status);
+    db.prepare('INSERT INTO claims (table_id, user_id, seat, eta, status, arrived_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(table.id, req.user.id, seat, eta, status, status === 'arrived' ? Math.floor(Date.now() / 1000) : null);
   });
   try {
     join();
@@ -338,8 +339,8 @@ spacesRouter.post('/:code/tables/:tableId/guests', (req, res) => {
   const seat = pickSeat(table.id, table.capacity, req.body?.seat);
   if (seat === null) return res.status(409).json({ error: 'This table is already full.' });
   const status = eta === 'now' ? 'arrived' : 'coming';
-  db.prepare('INSERT INTO claims (table_id, user_id, guest_name, seat, eta, status) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(table.id, req.user.id, guestName, seat, eta, status);
+  db.prepare('INSERT INTO claims (table_id, user_id, guest_name, seat, eta, status, arrived_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(table.id, req.user.id, guestName, seat, eta, status, status === 'arrived' ? Math.floor(Date.now() / 1000) : null);
   notify(space, participantIds(space), req.user.id,
     `${req.user.username} reserved a seat for ${guestName} (${table.label})`);
   sendUpdate(space, res);
@@ -362,11 +363,13 @@ spacesRouter.patch('/:code/claims/:claimId', (req, res) => {
   const who = claim.guest_name ?? (claim.user_id === req.user.id ? req.user.username : null);
   let eta = claim.eta;
   let status = claim.status;
+  let arrivedAt = claim.arrived_at;
   let message = null;
   if (req.body?.eta !== undefined) {
     eta = normalizeEta(req.body.eta);
     if (!eta) return res.status(400).json({ error: 'Invalid arrival time.' });
     status = 'coming';
+    arrivedAt = null;
     if (who) message = `${who} now plans to arrive ${eta === 'now' ? 'right away' : `at ${eta}`} (${claim.table_label})`;
   }
   if (req.body?.status !== undefined) {
@@ -374,10 +377,13 @@ spacesRouter.patch('/:code/claims/:claimId', (req, res) => {
     status = req.body.status;
     if (status === 'arrived') {
       eta = 'now';
+      if (claim.status !== 'arrived' || !arrivedAt) arrivedAt = Math.floor(Date.now() / 1000);
       if (who) message = `${who} has arrived (${claim.table_label}) 🎉`;
+    } else {
+      arrivedAt = null;
     }
   }
-  db.prepare('UPDATE claims SET eta = ?, status = ? WHERE id = ?').run(eta, status, claim.id);
+  db.prepare('UPDATE claims SET eta = ?, status = ?, arrived_at = ? WHERE id = ?').run(eta, status, arrivedAt, claim.id);
   if (message) notify(space, participantIds(space), req.user.id, message);
   sendUpdate(space, res);
 });

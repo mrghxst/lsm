@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS claims (
   seat INTEGER NOT NULL DEFAULT 0,
   eta TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'coming' CHECK (status IN ('coming', 'arrived')),
+  arrived_at INTEGER,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
@@ -197,6 +198,12 @@ if (!hasColumn('claims', 'seat')) {
     const claims = db.prepare('SELECT id FROM claims WHERE table_id = ? ORDER BY created_at, id').all(t.table_id);
     claims.forEach((c, i) => setSeat.run(i, c.id));
   }
+}
+
+// When someone actually sat down, for the time-at-table display.
+if (!hasColumn('claims', 'arrived_at')) {
+  db.exec('ALTER TABLE claims ADD COLUMN arrived_at INTEGER');
+  db.exec("UPDATE claims SET arrived_at = created_at WHERE status = 'arrived'");
 }
 
 // Seed memberships (idempotent): owners and everyone with a claim belong.

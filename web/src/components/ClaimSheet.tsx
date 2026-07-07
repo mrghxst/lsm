@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { SpaceState, Table } from '../types';
-import { claimColor, etaLabel } from '../util';
+import { claimColor, etaLabel, formatClock, formatDuration } from '../util';
+import { useNowMinute } from '../useNow';
 import { EtaPicker } from './EtaPicker';
 import { Stepper } from './Stepper';
 
@@ -32,6 +33,7 @@ export function ClaimSheet({
   onClose(): void;
   actions: Actions;
 }) {
+  const now = useNowMinute();
   const myClaimHere = table.claims.find((c) => c.userId === userId && !c.guestName);
   const myOtherTable = state.tables.find(
     (t) => t.id !== table.id && t.claims.some((c) => c.userId === userId && !c.guestName),
@@ -55,7 +57,9 @@ export function ClaimSheet({
       <>
         <p className="sheet-status">
           {myClaimHere.status === 'arrived'
-            ? "You're at this table. 🎉"
+            ? myClaimHere.arrivedAt
+              ? `You're at this table since ${formatClock(myClaimHere.arrivedAt)} (${formatDuration(myClaimHere.arrivedAt, now)}). 🎉`
+              : "You're at this table. 🎉"
             : `You're coming ${myClaimHere.eta === 'now' ? 'right now' : `at ${myClaimHere.eta}`}.`}
         </p>
         {myClaimHere.status === 'coming' && (
@@ -178,7 +182,13 @@ export function ClaimSheet({
                       {c.guestName ?? c.username}
                       {c.guestName && <span className="occupant-sub"> · friend of {c.username}</span>}
                     </span>
-                    <span className="occupant-eta">{c.status === 'arrived' ? 'here 🎉' : etaLabel(c.eta)}</span>
+                    <span className="occupant-eta">
+                      {c.status === 'arrived'
+                        ? c.arrivedAt
+                          ? `here · ${formatDuration(c.arrivedAt, now)}`
+                          : 'here 🎉'
+                        : etaLabel(c.eta)}
+                    </span>
                     {canManage && c.status === 'coming' && (
                       <button
                         className="occupant-btn"

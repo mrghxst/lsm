@@ -21,3 +21,15 @@ function shadeColor(hex: string, factor: number): string {
 export function claimColor(claim: { color: string; guestName: string | null }): string {
   return claim.guestName ? shadeColor(claim.color, 0.6) : claim.color;
 }
+
+export function formatClock(unixSeconds: number): string {
+  const d = new Date(unixSeconds * 1000);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+export function formatDuration(startUnixSeconds: number, nowMs: number): string {
+  const mins = Math.max(0, Math.floor((nowMs / 1000 - startUnixSeconds) / 60));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min`;
+  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+}

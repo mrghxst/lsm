@@ -14,6 +14,7 @@ export interface Claim {
   seat: number; // compartment index on the table (0-based)
   eta: string; // 'now' or 'HH:MM'
   status: 'coming' | 'arrived';
+  arrivedAt: number | null; // unix seconds, set when they actually sat down
 }
 
 export interface Table {
