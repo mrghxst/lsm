@@ -391,9 +391,20 @@ body {
   width: 200%;
   height: 200%;
   transform-origin: 0 0;
-  background-image: radial-gradient(var(--border) 1px, transparent 1px);
-  background-size: 24px 24px;
-  background-position: center;
+  /* graph paper aligned to the half-table snap grid (8x8 cells) */
+  background-image: linear-gradient(rgba(44, 54, 68, 0.7) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(44, 54, 68, 0.7) 1px, transparent 1px);
+  background-size: 12.5% 12.5%;
+}
+
+.rtable-ghost {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  background: rgba(79, 140, 255, 0.14);
+  pointer-events: none;
+  z-index: 4;
 }
 
 .zoom-controls {

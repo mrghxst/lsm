@@ -14,6 +14,20 @@ function clampPos(v: number) {
   return Math.min(0.94, Math.max(0.06, v));
 }
 
+// The canvas is an 8x8 board of half-table cells (keep in sync with
+// server/db.js): a table covers 2x1 cells, rotated 1x2, so snapped
+// tables sit flush against each other.
+const GRID_CELL = 0.125;
+const CELLS = 8;
+
+function snapPos(x: number, y: number, rot: 0 | 90) {
+  const wc = rot === 0 ? 2 : 1;
+  const hc = rot === 0 ? 1 : 2;
+  const leftCell = Math.min(CELLS - wc, Math.max(0, Math.round(x / GRID_CELL - wc / 2)));
+  const topCell = Math.min(CELLS - hc, Math.max(0, Math.round(y / GRID_CELL - hc / 2)));
+  return { x: (leftCell + wc / 2) * GRID_CELL, y: (topCell + hc / 2) * GRID_CELL };
+}
+
 interface View {
   scale: number;
   tx: number;
@@ -223,7 +237,8 @@ export function Room({
     if (!d) return;
     if (d.moved) {
       const pos = finalPos(d, e);
-      onMove(d.id, pos.x, pos.y);
+      const snapped = snapPos(pos.x, pos.y, t.rot);
+      onMove(d.id, snapped.x, snapped.y);
     } else {
       // a tap targets the compartment under the finger
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -258,6 +273,25 @@ export function Room({
         ref={canvasRef}
         style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}
       >
+        {live &&
+          (() => {
+            // dashed ghost previews the cell the dragged table will land in
+            const t = tables.find((tb) => tb.id === live.id);
+            if (!t) return null;
+            const s = snapPos(live.x, live.y, t.rot);
+            const horizontal = t.rot === 0;
+            return (
+              <div
+                className="rtable-ghost"
+                style={{
+                  left: `${s.x * 100}%`,
+                  top: `${s.y * 100}%`,
+                  width: horizontal ? '25%' : '12.5%',
+                  aspectRatio: horizontal ? '2 / 1' : '1 / 2',
+                }}
+              />
+            );
+          })()}
         {tables.map((t) => {
           const pos = live?.id === t.id ? live : { x: t.x, y: t.y };
           const horizontal = t.rot === 0;
@@ -274,7 +308,7 @@ export function Room({
               style={{
                 left: `${pos.x * 100}%`,
                 top: `${pos.y * 100}%`,
-                width: horizontal ? '24%' : '12%',
+                width: horizontal ? '25%' : '12.5%',
                 aspectRatio: horizontal ? '2 / 1' : '1 / 2',
               }}
               onPointerDown={(e) => onPointerDown(e, t)}

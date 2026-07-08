@@ -131,8 +131,15 @@ export function ClaimSheet({
         className="input"
         value={guestName}
         onChange={(e) => setGuestName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && guestName.trim()) {
+            e.preventDefault();
+            actions.addGuest(table.id, guestName.trim(), guestEta, seat);
+          }
+        }}
         placeholder="Friend's name"
         maxLength={20}
+        autoFocus
       />
       <EtaPicker value={guestEta} onChange={setGuestEta} />
       <button

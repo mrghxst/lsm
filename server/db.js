@@ -94,14 +94,32 @@ CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_members_user ON space_members(user_id);
 `);
 
-// Default arrangement for n tables: a centered grid, coordinates are
-// fractions (0..1) of the room, measured at the table's center.
+// The room is an 8x8 board of cells, each half a table long: a table
+// covers 2x1 cells (1x2 rotated), so tables always butt up flush
+// against each other. Coordinates are fractions (0..1) of the room,
+// measured at the table's center.
+export const GRID_CELL = 0.125;
+const CELLS = 8;
+
+export function snapPosition(x, y, rot) {
+  const wc = rot === 0 ? 2 : 1;
+  const hc = rot === 0 ? 1 : 2;
+  const leftCell = Math.min(CELLS - wc, Math.max(0, Math.round(x / GRID_CELL - wc / 2)));
+  const topCell = Math.min(CELLS - hc, Math.max(0, Math.round(y / GRID_CELL - hc / 2)));
+  return { x: (leftCell + wc / 2) * GRID_CELL, y: (topCell + hc / 2) * GRID_CELL };
+}
+
+// Default arrangement for n tables: grid-aligned columns with a
+// one-cell gap between rows while space allows.
 export function gridPositions(n) {
-  const cols = n <= 4 ? 2 : n <= 12 ? 3 : 4;
+  const cols = n <= 8 ? 2 : 3;
+  const leftCells = cols === 2 ? [1, 5] : [0, 3, 6];
   const rows = Math.ceil(n / cols);
+  const rowStep = rows <= 4 ? 2 : 1;
+  const topStart = rows <= 4 ? 1 : 0;
   return Array.from({ length: n }, (_, i) => ({
-    x: ((i % cols) + 0.5) / cols,
-    y: (Math.floor(i / cols) + 0.5) / rows,
+    x: (leftCells[i % cols] + 1) * GRID_CELL,
+    y: (topStart + Math.floor(i / cols) * rowStep + 0.5) * GRID_CELL,
   }));
 }
 
@@ -204,6 +222,16 @@ if (!hasColumn('claims', 'seat')) {
 if (!hasColumn('claims', 'arrived_at')) {
   db.exec('ALTER TABLE claims ADD COLUMN arrived_at INTEGER');
   db.exec("UPDATE claims SET arrived_at = created_at WHERE status = 'arrived'");
+}
+
+// Align any pre-snapping table positions to the grid (idempotent; moves
+// each table at most half a cell).
+{
+  const setPos = db.prepare('UPDATE tables SET x = ?, y = ? WHERE id = ?');
+  for (const t of db.prepare('SELECT id, x, y, rot FROM tables').all()) {
+    const p = snapPosition(t.x, t.y, t.rot);
+    if (p.x !== t.x || p.y !== t.y) setPos.run(p.x, p.y, t.id);
+  }
 }
 
 // Seed memberships (idempotent): owners and everyone with a claim belong.

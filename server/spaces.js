@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
-import { db, gridPositions } from './db.js';
+import { db, gridPositions, snapPosition } from './db.js';
 import { requireAuth } from './auth.js';
 import { subscribe, broadcast } from './events.js';
 import { colorFor } from './colors.js';
@@ -414,7 +414,7 @@ spacesRouter.post('/:code/tables', (req, res) => {
   const tables = db.prepare('SELECT label FROM tables WHERE space_id = ?').all(space.id);
   if (tables.length >= 20) return res.status(409).json({ error: 'Maximum of 20 tables reached.' });
   const maxNum = tables.reduce((m, t) => Math.max(m, Number(/^T(\d+)$/.exec(t.label)?.[1] ?? 0)), 0);
-  db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 1, 0.5, 0.5)')
+  db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 1, 0.5, 0.4375)')
     .run(space.id, `T${maxNum + 1}`);
   sendUpdate(space, res);
 });
@@ -457,16 +457,19 @@ spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
     if (capacity < n) return res.status(409).json({ error: `${n} people are on this table — remove seats after they move.` });
     updates.capacity = capacity;
   }
-  if (x !== undefined || y !== undefined) {
-    const nx = Number(x ?? table.x);
-    const ny = Number(y ?? table.y);
-    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return res.status(400).json({ error: 'Invalid position.' });
-    updates.x = Math.min(0.94, Math.max(0.06, nx));
-    updates.y = Math.min(0.94, Math.max(0.06, ny));
-  }
   if (rot !== undefined) {
     if (rot !== 0 && rot !== 90) return res.status(400).json({ error: 'Rotation must be 0 or 90.' });
     updates.rot = rot;
+  }
+  if (x !== undefined || y !== undefined || updates.rot !== undefined) {
+    const nx = Number(x ?? table.x);
+    const ny = Number(y ?? table.y);
+    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return res.status(400).json({ error: 'Invalid position.' });
+    // Snap to the half-table grid, so tables sit flush on every client
+    // (rotating re-snaps too, since the footprint changes shape).
+    const snapped = snapPosition(nx, ny, updates.rot !== undefined ? updates.rot : table.rot);
+    updates.x = snapped.x;
+    updates.y = snapped.y;
   }
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Nothing to change.' });
 
