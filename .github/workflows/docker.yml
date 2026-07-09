@@ -1,12 +1,13 @@
 # Build the production image and push it to Docker Hub (mrghxst/lsm) on
-# every push to main. Needs two repository secrets (Settings → Secrets and
-# variables → Actions): DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (an access
-# token from hub.docker.com → Account Settings → Personal access tokens).
+# every push to main or the my-build line. Needs two repository secrets
+# (Settings → Secrets and variables → Actions): DOCKERHUB_USERNAME and
+# DOCKERHUB_TOKEN (an access token from hub.docker.com → Account Settings →
+# Personal access tokens).
 name: docker image
 
 on:
   push:
-    branches: [main]
+    branches: [main, my-build]
 
 jobs:
   build-and-push:
