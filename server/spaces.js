@@ -5,9 +5,11 @@ import { requireAuth } from './auth.js';
 import { subscribe, broadcast } from './events.js';
 import { colorFor } from './colors.js';
 import { notifyUsers } from './push.js';
+import { votesRouter, votesForState, maybeCreateLunchVote, clearVotes } from './votes.js';
 
 export const spacesRouter = Router();
 spacesRouter.use(requireAuth);
+spacesRouter.use('/:code/votes', votesRouter);
 
 // No 0/O/1/I/L to keep codes easy to read out loud.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -114,6 +116,7 @@ export function getSpaceState(code) {
         })),
     })),
     tomorrow: tomorrowPledges(space.id),
+    votes: votesForState(space.id),
   };
 }
 
@@ -247,6 +250,7 @@ spacesRouter.post('/', (req, res) => {
     addMember(info.lastInsertRowid, req.user.id);
     addParticipant(info.lastInsertRowid, req.user.id);
     createTables(info.lastInsertRowid, params.tableCount, params.defaultCapacity);
+    maybeCreateLunchVote(info.lastInsertRowid, req.user.id);
     return code;
   });
   res.json({ code: create() });
@@ -296,6 +300,8 @@ spacesRouter.post('/:code/sessions', (req, res) => {
       .run(req.user.id, space.id);
     addParticipant(space.id, req.user.id);
     createTables(space.id, params.tableCount, params.defaultCapacity);
+    clearVotes(space.id);
+    maybeCreateLunchVote(space.id, req.user.id);
   })();
   notify(space, memberIds(space.id), req.user.id,
     `${req.user.username} set up the space — ${params.tableCount} ${params.tableCount === 1 ? 'table' : 'tables'}, ${params.tableCount * params.defaultCapacity} seats. Who's coming?`);
@@ -313,6 +319,7 @@ function endSession(space) {
   db.transaction(() => {
     db.prepare('DELETE FROM tables WHERE space_id = ?').run(space.id);
     db.prepare('DELETE FROM session_participants WHERE space_id = ?').run(space.id);
+    clearVotes(space.id);
     db.prepare("UPDATE spaces SET status = 'idle', opened_by = NULL, opened_at = NULL WHERE id = ?").run(space.id);
   })();
   return [...ids];

@@ -108,6 +108,37 @@ CREATE TABLE IF NOT EXISTS tomorrow_signups (
   PRIMARY KEY (space_id, user_id)
 );
 
+-- Session-scoped polls (e.g. where to eat lunch). Wiped together with the
+-- tables when a session ends, so every study day starts fresh.
+CREATE TABLE IF NOT EXISTS votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'custom' CHECK (kind IN ('lunch', 'custom')),
+  title TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  reminder_sent INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS vote_options (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vote_id INTEGER NOT NULL REFERENCES votes(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  facility_id INTEGER,   -- ETH gastronomy facility, for the live menu view
+  added_by INTEGER REFERENCES users(id) ON DELETE SET NULL  -- NULL = built-in option
+);
+
+-- One ballot per person per vote; changing your mind replaces it.
+CREATE TABLE IF NOT EXISTS vote_ballots (
+  vote_id INTEGER NOT NULL REFERENCES votes(id) ON DELETE CASCADE,
+  option_id INTEGER NOT NULL REFERENCES vote_options(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (vote_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_votes_space ON votes(space_id);
+CREATE INDEX IF NOT EXISTS idx_vote_options_vote ON vote_options(vote_id);
 CREATE INDEX IF NOT EXISTS idx_tables_space ON tables(space_id);
 CREATE INDEX IF NOT EXISTS idx_claims_table ON claims(table_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_expiry ON auth_tokens(expires_at);

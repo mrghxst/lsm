@@ -9,6 +9,7 @@ import { Room } from '../components/Room';
 import { PeopleList } from '../components/PeopleList';
 import { ClaimSheet } from '../components/ClaimSheet';
 import { Stepper } from '../components/Stepper';
+import { VotesBar, VoteSheet } from '../components/Votes';
 
 export function Space() {
   const { code = '' } = useParams();
@@ -22,6 +23,7 @@ export function Space() {
   const [toast, setToast] = useState<string | null>(null);
   const [setupTables, setSetupTables] = useState(4);
   const [setupSeats, setSetupSeats] = useState(1);
+  const [votesOpen, setVotesOpen] = useState(false);
   const toastTimer = useRef<number>();
 
   const showToast = useCallback((msg: string) => {
@@ -281,12 +283,25 @@ export function Space() {
     removeTable: (tableId: number) => mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'DELETE' }),
   };
 
+  const voteActions = {
+    castBallot: (voteId: number, optionId: number | null) =>
+      void mutate(`/api/spaces/${code}/votes/${voteId}/ballots`, { method: 'POST', body: { optionId } }, { close: false }),
+    addOption: (voteId: number, label: string) =>
+      void mutate(`/api/spaces/${code}/votes/${voteId}/options`, { method: 'POST', body: { label } }, { close: false }),
+    createVote: (title: string) =>
+      void mutate(`/api/spaces/${code}/votes`, { method: 'POST', body: { title } }, { close: false }),
+    removeVote: (voteId: number) =>
+      void mutate(`/api/spaces/${code}/votes/${voteId}`, { method: 'DELETE' }, { close: false }),
+  };
+
   return (
     <div className="app space-layout">
       <div className="space-main">
         {header}
 
         <SummaryBar state={state} />
+
+        <VotesBar votes={state.votes} onOpen={() => setVotesOpen(true)} />
 
         <div className="room-wrap">
           <Room tables={tables} currentUserId={user.id} onTap={(id, seat) => setSelected({ id, seat })} onMove={actions.move} />
@@ -318,6 +333,16 @@ export function Space() {
           </button>
         )}
       </aside>
+
+      {votesOpen && (
+        <VoteSheet
+          state={state}
+          userId={user.id}
+          canManage={canManageSession}
+          onClose={() => setVotesOpen(false)}
+          actions={voteActions}
+        />
+      )}
 
       {selectedTable && selected && (
         <ClaimSheet

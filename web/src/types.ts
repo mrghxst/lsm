@@ -47,10 +47,46 @@ export interface TomorrowPledge {
   color: string;
 }
 
+export interface VoteVoter {
+  userId: number;
+  username: string;
+  color: string;
+}
+
+export interface VoteOption {
+  id: number;
+  label: string;
+  facilityId: number | null; // ETH gastronomy facility, for the live menu view
+  addedBy: number | null; // null = built-in option
+  voters: VoteVoter[];
+}
+
+export interface Vote {
+  id: number;
+  kind: 'lunch' | 'custom';
+  title: string;
+  createdBy: number | null;
+  options: VoteOption[];
+}
+
+export interface Meal {
+  line: string;
+  name: string;
+  description: string;
+  price: number | null;
+}
+
+export interface FacilityMenu {
+  facilityId: number;
+  label: string;
+  meals: Meal[];
+}
+
 export interface SpaceState {
   space: SpaceInfo;
   tables: Table[];
   tomorrow: TomorrowPledge[];
+  votes: Vote[];
 }
 
 export interface GroupSummary {

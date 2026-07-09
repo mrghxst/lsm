@@ -22,6 +22,7 @@ keeps the group, its code and its members for tomorrow.
 - **Persistent groups** — 6-character codes / shareable links that stay valid; your home screen shows each group's live status
 - **Auto-reset** — sessions end themselves after 16 hours (one study day); the group stays
 - **Tomorrow pledges** — the last one out is prompted to end the session; everyone who took part gets a push asking "coming back tomorrow?" — one tap signals intent (no time needed), so the first person there next morning knows what table size to grab, and fellow pledgers get a small motivational nudge
+- **Lunch votes** — sessions opened before 12:00 (Zurich) automatically get a "Lunch today" vote with the ETH Zentrum spots (Clausiusbar, Archimedes, Polysnack, Obere/Untere Mensa, Orient Catering); tapping ℹ️ shows today's live menus straight from ETH's gastronomy API. Anyone can start extra votes on anything, add one custom option per person, and change their ballot; a slim chip shows just the current leader, the details live in an overlay, and non-voters get one reminder push at 11:00
 
 ## Local development
 
@@ -103,6 +104,11 @@ DELETE /api/spaces/:code/tables/:id            remove an empty table
 PATCH  /api/spaces/:code/tables/:id            {released?, capacity?, x?, y?, rot?}
 GET    /api/admin/overview                     all users + spaces (admin)
 DELETE /api/admin/users/:id                    delete a user (admin)
+POST   /api/spaces/:code/votes                 {title} start a vote
+DELETE /api/spaces/:code/votes/:id             remove a vote (creator/manager)
+POST   /api/spaces/:code/votes/:id/options     {label} add an option (1 custom per person)
+POST   /api/spaces/:code/votes/:id/ballots     {optionId} cast/change ballot (null = retract)
+GET    /api/menus                              today's menus of the ETH lunch spots (cached)
 GET    /api/push/key                           VAPID public key
 POST   /api/push/subscribe                     {subscription} enable notifications
 POST   /api/push/unsubscribe                   {endpoint}
