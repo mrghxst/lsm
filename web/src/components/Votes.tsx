@@ -5,7 +5,8 @@ import type { FacilityMenu, SpaceState, Vote, VoteOption } from '../types';
 interface VoteActions {
   castBallot(voteId: number, optionId: number | null): void;
   addOption(voteId: number, label: string): void;
-  createVote(title: string): void;
+  createVote(title: string, options: string[]): void;
+  startLunchVote(): void;
   removeVote(voteId: number): void;
 }
 
@@ -82,14 +83,18 @@ function VoteCard({
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [newOption, setNewOption] = useState('');
   const myOptionId = vote.options.find((o) => o.voters.some((v) => v.userId === userId))?.id ?? null;
-  const alreadyAdded = vote.options.some((o) => o.addedBy === userId);
+  const totalBallots = vote.options.reduce((sum, o) => sum + o.voters.length, 0);
+  // Everyone may suggest at most one extra lunch place per day; other polls
+  // take as many options as people need.
+  const canAddOption = vote.kind !== 'lunch' || !vote.options.some((o) => o.addedBy === userId);
   const canRemove = canManage || vote.createdBy === userId;
 
   return (
     <div className="sheet-section vote-card">
       <div className="vote-head">
         <p className="sheet-label">{vote.title}</p>
-        {canRemove && vote.kind === 'custom' && (
+        <span className="vote-total">{totalBallots === 1 ? '1 vote' : `${totalBallots} votes`}</span>
+        {canRemove && (
           <button className="occupant-btn danger" title="Remove this vote" onClick={() => actions.removeVote(vote.id)}>
             ✕
           </button>
@@ -102,14 +107,22 @@ function VoteCard({
               className="vote-opt-main"
               onClick={() => actions.castBallot(vote.id, o.id === myOptionId ? null : o.id)}
             >
-              <span className="vote-check">{o.id === myOptionId ? '✅' : '⬜'}</span>
-              <span className="vote-label">{o.label}</span>
-              <span className="voter-dots">
-                {o.voters.map((v) => (
-                  <span key={v.userId} className="person-dot" style={{ background: v.color }} title={v.username} />
-                ))}
+              <span className="vote-opt-top">
+                <span className="vote-check">{o.id === myOptionId ? '✅' : '⬜'}</span>
+                <span className="vote-label">{o.label}</span>
+                <span className="voter-dots">
+                  {o.voters.map((v) => (
+                    <span key={v.userId} className="person-dot" style={{ background: v.color }} title={v.username} />
+                  ))}
+                </span>
+                <span className="vote-count">{o.voters.length > 0 ? o.voters.length : ''}</span>
               </span>
-              <span className="vote-count">{o.voters.length > 0 ? o.voters.length : ''}</span>
+              <span className="vote-track">
+                <span
+                  className="vote-fill"
+                  style={{ width: totalBallots > 0 ? `${(o.voters.length / totalBallots) * 100}%` : '0%' }}
+                />
+              </span>
             </button>
             {o.facilityId !== null && (
               <button
@@ -124,7 +137,7 @@ function VoteCard({
           {openMenu === o.id && o.facilityId !== null && <MenuDetail menus={menus} facilityId={o.facilityId} />}
         </div>
       ))}
-      {!alreadyAdded && (
+      {canAddOption && (
         <div className="vote-add-row">
           <input
             className="input"
@@ -137,7 +150,7 @@ function VoteCard({
                 setNewOption('');
               }
             }}
-            placeholder="Add your own option (1 per person)"
+            placeholder={vote.kind === 'lunch' ? 'Suggest one more place (1 per person)' : 'Add an option'}
             maxLength={40}
           />
           <button
@@ -171,7 +184,11 @@ export function VoteSheet({
 }) {
   const [menus, setMenus] = useState<FacilityMenu[] | null>(null);
   const [newTitle, setNewTitle] = useState('');
+  const [newOptions, setNewOptions] = useState<string[]>(['', '']);
   const needMenus = state.votes.some((v) => v.options.some((o) => o.facilityId !== null));
+  const hasLunchVote = state.votes.some((v) => v.kind === 'lunch');
+  const filledOptions = newOptions.map((o) => o.trim()).filter(Boolean);
+  const canCreate = newTitle.trim().length > 0 && filledOptions.length >= 2;
 
   useEffect(() => {
     if (!needMenus) return;
@@ -179,6 +196,16 @@ export function VoteSheet({
       .then((r) => setMenus(r.menus))
       .catch(() => setMenus([]));
   }, [needMenus]);
+
+  function setOption(i: number, value: string) {
+    setNewOptions((opts) => opts.map((o, j) => (j === i ? value : o)));
+  }
+
+  function create() {
+    actions.createVote(newTitle.trim(), filledOptions);
+    setNewTitle('');
+    setNewOptions(['', '']);
+  }
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
@@ -188,36 +215,43 @@ export function VoteSheet({
           <h2>Votes</h2>
         </div>
         <div className="stack">
-          {state.votes.length === 0 && <p className="hint">No votes running — start one below.</p>}
+          {!hasLunchVote && (
+            <button className="btn btn-secondary" onClick={() => actions.startLunchVote()}>
+              🍽️ Where to eat lunch today?
+            </button>
+          )}
           {state.votes.map((v) => (
             <VoteCard key={v.id} vote={v} userId={userId} canManage={canManage} menus={menus} actions={actions} />
           ))}
           <div className="sheet-section">
             <p className="sheet-label">Start a new vote</p>
-            <div className="vote-add-row">
+            <input
+              className="input"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="What are you deciding?"
+              maxLength={40}
+            />
+            {newOptions.map((val, i) => (
               <input
+                key={i}
                 className="input"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newTitle.trim()) {
-                    e.preventDefault();
-                    actions.createVote(newTitle.trim());
-                    setNewTitle('');
-                  }
-                }}
-                placeholder="What are you deciding?"
+                value={val}
+                onChange={(e) => setOption(i, e.target.value)}
+                placeholder={`Option ${i + 1}${i === 0 ? ' (e.g. Yes)' : i === 1 ? ' (e.g. No)' : ''}`}
                 maxLength={40}
               />
+            ))}
+            <div className="vote-add-row">
               <button
                 className="btn btn-secondary btn-compact"
-                disabled={!newTitle.trim()}
-                onClick={() => {
-                  actions.createVote(newTitle.trim());
-                  setNewTitle('');
-                }}
+                disabled={newOptions.length >= 12}
+                onClick={() => setNewOptions((opts) => [...opts, ''])}
               >
-                Start
+                ➕ Option
+              </button>
+              <button className="btn btn-primary btn-compact vote-create-btn" disabled={!canCreate} onClick={create}>
+                Start vote
               </button>
             </div>
           </div>

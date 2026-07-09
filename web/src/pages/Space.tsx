@@ -288,8 +288,10 @@ export function Space() {
       void mutate(`/api/spaces/${code}/votes/${voteId}/ballots`, { method: 'POST', body: { optionId } }, { close: false }),
     addOption: (voteId: number, label: string) =>
       void mutate(`/api/spaces/${code}/votes/${voteId}/options`, { method: 'POST', body: { label } }, { close: false }),
-    createVote: (title: string) =>
-      void mutate(`/api/spaces/${code}/votes`, { method: 'POST', body: { title } }, { close: false }),
+    createVote: (title: string, options: string[]) =>
+      void mutate(`/api/spaces/${code}/votes`, { method: 'POST', body: { title, options } }, { close: false }),
+    startLunchVote: () =>
+      void mutate(`/api/spaces/${code}/votes`, { method: 'POST', body: { kind: 'lunch' } }, { close: false }),
     removeVote: (voteId: number) =>
       void mutate(`/api/spaces/${code}/votes/${voteId}`, { method: 'DELETE' }, { close: false }),
   };

@@ -5,7 +5,7 @@ import { requireAuth } from './auth.js';
 import { subscribe, broadcast } from './events.js';
 import { colorFor } from './colors.js';
 import { notifyUsers } from './push.js';
-import { votesRouter, votesForState, maybeCreateLunchVote, clearVotes } from './votes.js';
+import { votesRouter, votesForState, clearVotes } from './votes.js';
 
 export const spacesRouter = Router();
 spacesRouter.use(requireAuth);
@@ -250,7 +250,6 @@ spacesRouter.post('/', (req, res) => {
     addMember(info.lastInsertRowid, req.user.id);
     addParticipant(info.lastInsertRowid, req.user.id);
     createTables(info.lastInsertRowid, params.tableCount, params.defaultCapacity);
-    maybeCreateLunchVote(info.lastInsertRowid, req.user.id);
     return code;
   });
   res.json({ code: create() });
@@ -301,7 +300,6 @@ spacesRouter.post('/:code/sessions', (req, res) => {
     addParticipant(space.id, req.user.id);
     createTables(space.id, params.tableCount, params.defaultCapacity);
     clearVotes(space.id);
-    maybeCreateLunchVote(space.id, req.user.id);
   })();
   notify(space, memberIds(space.id), req.user.id,
     `${req.user.username} set up the space — ${params.tableCount} ${params.tableCount === 1 ? 'table' : 'tables'}, ${params.tableCount * params.defaultCapacity} seats. Who's coming?`);

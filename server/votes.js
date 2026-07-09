@@ -63,13 +63,12 @@ export function votesForState(spaceId) {
   }));
 }
 
-// Sessions opened in the morning get a lunch vote automatically; a room
-// opened after 12 (Zurich) skips it — lunch is already decided or over.
-export function maybeCreateLunchVote(spaceId, userId) {
-  if (zurichHour() >= 12) return;
+// The lunch vote is started by hand (one tap in the vote sheet) and comes
+// preloaded with the ETH Zentrum spots.
+function createLunchVote(spaceId, userId) {
   db.transaction(() => {
     const info = db
-      .prepare("INSERT INTO votes (space_id, kind, title, created_by) VALUES (?, 'lunch', 'Lunch today', ?)")
+      .prepare("INSERT INTO votes (space_id, kind, title, created_by) VALUES (?, 'lunch', 'Where to eat lunch?', ?)")
       .run(spaceId, userId);
     const ins = db.prepare('INSERT INTO vote_options (vote_id, label, facility_id) VALUES (?, ?, ?)');
     for (const p of LUNCH_PLACES) ins.run(info.lastInsertRowid, p.label, p.facilityId);
@@ -149,16 +148,39 @@ function getVote(req, res, space) {
   return vote ?? null;
 }
 
-// Anyone in the session can start a vote on anything.
+// Anyone in the session can start a poll: a title plus its options, like a
+// WhatsApp poll (a yes/no question is just a two-option poll). {kind:'lunch'}
+// instead starts the preloaded where-to-eat vote.
 votesRouter.post('/', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
-  const title = String(req.body?.title ?? '').trim();
-  if (!title || title.length > 40) return res.status(400).json({ error: 'Give the vote a topic (max 40 characters).' });
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM votes WHERE space_id = ?').get(space.id);
   if (n >= 5) return res.status(409).json({ error: 'Five votes at once is plenty — close one first.' });
-  db.prepare("INSERT INTO votes (space_id, kind, title, created_by) VALUES (?, 'custom', ?, ?)")
-    .run(space.id, title, req.user.id);
+
+  if (req.body?.kind === 'lunch') {
+    if (db.prepare("SELECT 1 FROM votes WHERE space_id = ? AND kind = 'lunch'").get(space.id)) {
+      return res.status(409).json({ error: 'A lunch vote is already running.' });
+    }
+    createLunchVote(space.id, req.user.id);
+    return sendUpdate(space, res);
+  }
+
+  const title = String(req.body?.title ?? '').trim();
+  if (!title || title.length > 40) return res.status(400).json({ error: 'Give the vote a topic (max 40 characters).' });
+  const seen = new Set();
+  const options = (Array.isArray(req.body?.options) ? req.body.options : [])
+    .map((o) => String(o).trim())
+    .filter((o) => o && !seen.has(o.toLowerCase()) && seen.add(o.toLowerCase()));
+  if (options.length < 2) return res.status(400).json({ error: 'Give the vote at least two options (e.g. Yes / No).' });
+  if (options.length > 12 || options.some((o) => o.length > 40)) {
+    return res.status(400).json({ error: 'Max 12 options, 40 characters each.' });
+  }
+  db.transaction(() => {
+    const info = db.prepare("INSERT INTO votes (space_id, kind, title, created_by) VALUES (?, 'custom', ?, ?)")
+      .run(space.id, title, req.user.id);
+    const ins = db.prepare('INSERT INTO vote_options (vote_id, label, added_by) VALUES (?, ?, ?)');
+    for (const o of options) ins.run(info.lastInsertRowid, o, req.user.id);
+  })();
   sendUpdate(space, res);
 });
 
@@ -176,8 +198,9 @@ votesRouter.delete('/:voteId', (req, res) => {
   sendUpdate(space, res);
 });
 
-// Add an extra option — one custom option per person per vote, so the
-// list stays a shortlist and not a wishlist.
+// Add an extra option. On the lunch vote everyone may suggest at most one
+// extra place per day, so the shortlist stays short; on other polls anyone
+// can add as many options as needed.
 votesRouter.post('/:voteId/options', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
@@ -186,13 +209,15 @@ votesRouter.post('/:voteId/options', (req, res) => {
   const label = String(req.body?.label ?? '').trim();
   if (!label || label.length > 40) return res.status(400).json({ error: 'Give the option a name (max 40 characters).' });
   const options = db.prepare('SELECT * FROM vote_options WHERE vote_id = ?').all(vote.id);
-  if (options.some((o) => o.added_by === req.user.id)) {
-    return res.status(409).json({ error: 'You already added an option to this vote.' });
+  if (vote.kind === 'lunch' && options.some((o) => o.added_by === req.user.id)) {
+    return res.status(409).json({ error: 'One extra lunch spot per person per day.' });
   }
   if (options.some((o) => o.label.toLowerCase() === label.toLowerCase())) {
     return res.status(409).json({ error: 'That option is already on the list.' });
   }
-  if (options.length >= 12) return res.status(409).json({ error: 'This vote has enough options already.' });
+  if (options.length >= (vote.kind === 'lunch' ? 12 : 20)) {
+    return res.status(409).json({ error: 'This vote has enough options already.' });
+  }
   db.prepare('INSERT INTO vote_options (vote_id, label, added_by) VALUES (?, ?, ?)').run(vote.id, label, req.user.id);
   sendUpdate(space, res);
 });

@@ -1124,7 +1124,7 @@ body {
 .vote-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
 }
 
 .vote-opt {
@@ -1135,11 +1135,12 @@ body {
 
 .vote-opt-main {
   flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 7px;
   min-height: 44px;
-  padding: 0 12px;
+  padding: 9px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--card-2);
@@ -1150,8 +1151,42 @@ body {
   text-align: left;
 }
 
+.vote-opt-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* WhatsApp-style result bar: filled share of all ballots cast in this vote */
+.vote-track {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.vote-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
 .vote-opt.mine .vote-opt-main {
   border-color: var(--accent);
+}
+
+.vote-total {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.vote-create-btn {
+  flex: 1;
 }
 
 .vote-label {
