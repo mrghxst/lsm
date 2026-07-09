@@ -20,12 +20,62 @@ function clampPos(v: number) {
 const GRID_CELL = 0.125;
 const CELLS = 8;
 
-function snapPos(x: number, y: number, rot: 0 | 90) {
+interface Placement {
+  leftCell: number;
+  topCell: number;
+  wc: number;
+  hc: number;
+}
+
+function tablePlacement(x: number, y: number, rot: 0 | 90): Placement {
   const wc = rot === 0 ? 2 : 1;
   const hc = rot === 0 ? 1 : 2;
-  const leftCell = Math.min(CELLS - wc, Math.max(0, Math.round(x / GRID_CELL - wc / 2)));
-  const topCell = Math.min(CELLS - hc, Math.max(0, Math.round(y / GRID_CELL - hc / 2)));
-  return { x: (leftCell + wc / 2) * GRID_CELL, y: (topCell + hc / 2) * GRID_CELL };
+  return {
+    leftCell: Math.min(CELLS - wc, Math.max(0, Math.round(x / GRID_CELL - wc / 2))),
+    topCell: Math.min(CELLS - hc, Math.max(0, Math.round(y / GRID_CELL - hc / 2))),
+    wc,
+    hc,
+  };
+}
+
+function placementsOverlap(a: Placement, b: Placement) {
+  return a.leftCell < b.leftCell + b.wc && b.leftCell < a.leftCell + a.wc &&
+    a.topCell < b.topCell + b.hc && b.topCell < a.topCell + a.hc;
+}
+
+function placementCenter(p: Placement) {
+  return { x: (p.leftCell + p.wc / 2) * GRID_CELL, y: (p.topCell + p.hc / 2) * GRID_CELL };
+}
+
+function snapPos(x: number, y: number, rot: 0 | 90) {
+  return placementCenter(tablePlacement(x, y, rot));
+}
+
+// Where a dropped table actually lands (mirrors server/db.js): the
+// snapped cell if free, else the nearest free spot at most one cell
+// away, else null — the drop is refused.
+function findFreeSpot(x: number, y: number, rot: 0 | 90, others: Placement[]) {
+  const desired = tablePlacement(x, y, rot);
+  let best: { x: number; y: number; dist: number } | null = null;
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      const cand: Placement = {
+        leftCell: Math.min(CELLS - desired.wc, Math.max(0, desired.leftCell + dx)),
+        topCell: Math.min(CELLS - desired.hc, Math.max(0, desired.topCell + dy)),
+        wc: desired.wc,
+        hc: desired.hc,
+      };
+      if (others.some((o) => placementsOverlap(cand, o))) continue;
+      const c = placementCenter(cand);
+      const dist = Math.hypot(c.x - x, c.y - y);
+      if (!best || dist < best.dist) best = { ...c, dist };
+    }
+  }
+  return best ? { x: best.x, y: best.y } : null;
+}
+
+function otherPlacements(tables: Table[], excludeId: number): Placement[] {
+  return tables.filter((t) => t.id !== excludeId).map((t) => tablePlacement(t.x, t.y, t.rot));
 }
 
 interface View {
@@ -237,8 +287,9 @@ export function Room({
     if (!d) return;
     if (d.moved) {
       const pos = finalPos(d, e);
-      const snapped = snapPos(pos.x, pos.y, t.rot);
-      onMove(d.id, snapped.x, snapped.y);
+      const spot = findFreeSpot(pos.x, pos.y, t.rot, otherPlacements(tables, t.id));
+      if (spot) onMove(d.id, spot.x, spot.y);
+      // no free spot: the table springs back to where it was
     } else {
       // a tap targets the compartment under the finger
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -275,14 +326,16 @@ export function Room({
       >
         {live &&
           (() => {
-            // dashed ghost previews the cell the dragged table will land in
+            // dashed ghost previews the cell the dragged table will land in;
+            // red means there is no room and the drop will be refused
             const t = tables.find((tb) => tb.id === live.id);
             if (!t) return null;
-            const s = snapPos(live.x, live.y, t.rot);
+            const spot = findFreeSpot(live.x, live.y, t.rot, otherPlacements(tables, t.id));
+            const s = spot ?? snapPos(live.x, live.y, t.rot);
             const horizontal = t.rot === 0;
             return (
               <div
-                className="rtable-ghost"
+                className={`rtable-ghost${spot ? '' : ' invalid'}`}
                 style={{
                   left: `${s.x * 100}%`,
                   top: `${s.y * 100}%`,

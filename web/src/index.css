@@ -407,6 +407,11 @@ body {
   z-index: 4;
 }
 
+.rtable-ghost.invalid {
+  border-color: var(--red);
+  background: rgba(239, 85, 99, 0.16);
+}
+
 .zoom-controls {
   position: absolute;
   right: 10px;

@@ -109,6 +109,68 @@ export function snapPosition(x, y, rot) {
   return { x: (leftCell + wc / 2) * GRID_CELL, y: (topCell + hc / 2) * GRID_CELL };
 }
 
+// Collision system (mirrored in web/src/components/Room.tsx — keep in
+// sync): tables occupy whole cells and may never overlap.
+export function tablePlacement(x, y, rot) {
+  const wc = rot === 0 ? 2 : 1;
+  const hc = rot === 0 ? 1 : 2;
+  return {
+    leftCell: Math.min(CELLS - wc, Math.max(0, Math.round(x / GRID_CELL - wc / 2))),
+    topCell: Math.min(CELLS - hc, Math.max(0, Math.round(y / GRID_CELL - hc / 2))),
+    wc,
+    hc,
+  };
+}
+
+function placementsOverlap(a, b) {
+  return a.leftCell < b.leftCell + b.wc && b.leftCell < a.leftCell + a.wc &&
+    a.topCell < b.topCell + b.hc && b.topCell < a.topCell + a.hc;
+}
+
+function placementCenter(p) {
+  return { x: (p.leftCell + p.wc / 2) * GRID_CELL, y: (p.topCell + p.hc / 2) * GRID_CELL };
+}
+
+// Where a table dropped at (x, y) actually lands: the snapped cell if
+// free, else the nearest free spot at most one cell away, else null
+// (the drop is refused).
+export function findFreeSpot(x, y, rot, others) {
+  const desired = tablePlacement(x, y, rot);
+  let best = null;
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      const cand = {
+        leftCell: Math.min(CELLS - desired.wc, Math.max(0, desired.leftCell + dx)),
+        topCell: Math.min(CELLS - desired.hc, Math.max(0, desired.topCell + dy)),
+        wc: desired.wc,
+        hc: desired.hc,
+      };
+      if (others.some((o) => placementsOverlap(cand, o))) continue;
+      const c = placementCenter(cand);
+      const dist = Math.hypot(c.x - x, c.y - y);
+      if (!best || dist < best.dist) best = { ...c, dist };
+    }
+  }
+  return best ? { x: best.x, y: best.y } : null;
+}
+
+// The closest free placement to the room's center, for new tables.
+export function findAnyFreeSpot(rot, others) {
+  const wc = rot === 0 ? 2 : 1;
+  const hc = rot === 0 ? 1 : 2;
+  let best = null;
+  for (let leftCell = 0; leftCell <= CELLS - wc; leftCell++) {
+    for (let topCell = 0; topCell <= CELLS - hc; topCell++) {
+      const cand = { leftCell, topCell, wc, hc };
+      if (others.some((o) => placementsOverlap(cand, o))) continue;
+      const c = placementCenter(cand);
+      const dist = Math.hypot(c.x - 0.5, c.y - 0.4375);
+      if (!best || dist < best.dist) best = { ...c, dist };
+    }
+  }
+  return best ? { x: best.x, y: best.y } : null;
+}
+
 // Default arrangement for n tables: grid-aligned columns with a
 // one-cell gap between rows while space allows.
 export function gridPositions(n) {

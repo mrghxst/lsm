@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
-import { db, gridPositions, snapPosition } from './db.js';
+import { db, gridPositions, tablePlacement, findFreeSpot, findAnyFreeSpot } from './db.js';
 import { requireAuth } from './auth.js';
 import { subscribe, broadcast } from './events.js';
 import { colorFor } from './colors.js';
@@ -411,11 +411,13 @@ spacesRouter.delete('/:code/claims/:claimId', (req, res) => {
 spacesRouter.post('/:code/tables', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
-  const tables = db.prepare('SELECT label FROM tables WHERE space_id = ?').all(space.id);
+  const tables = db.prepare('SELECT label, x, y, rot FROM tables WHERE space_id = ?').all(space.id);
   if (tables.length >= 20) return res.status(409).json({ error: 'Maximum of 20 tables reached.' });
+  const spot = findAnyFreeSpot(0, tables.map((t) => tablePlacement(t.x, t.y, t.rot)));
+  if (!spot) return res.status(409).json({ error: 'No space left in the room for another table.' });
   const maxNum = tables.reduce((m, t) => Math.max(m, Number(/^T(\d+)$/.exec(t.label)?.[1] ?? 0)), 0);
-  db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 1, 0.5, 0.4375)')
-    .run(space.id, `T${maxNum + 1}`);
+  db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 1, ?, ?)')
+    .run(space.id, `T${maxNum + 1}`, spot.x, spot.y);
   sendUpdate(space, res);
 });
 
@@ -465,11 +467,20 @@ spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
     const nx = Number(x ?? table.x);
     const ny = Number(y ?? table.y);
     if (!Number.isFinite(nx) || !Number.isFinite(ny)) return res.status(400).json({ error: 'Invalid position.' });
-    // Snap to the half-table grid, so tables sit flush on every client
-    // (rotating re-snaps too, since the footprint changes shape).
-    const snapped = snapPosition(nx, ny, updates.rot !== undefined ? updates.rot : table.rot);
-    updates.x = snapped.x;
-    updates.y = snapped.y;
+    // Snap to the half-table grid and refuse overlaps: the table lands
+    // on the nearest free spot within one cell, or nowhere at all.
+    const others = db
+      .prepare('SELECT x, y, rot FROM tables WHERE space_id = ? AND id != ?')
+      .all(space.id, table.id)
+      .map((o) => tablePlacement(o.x, o.y, o.rot));
+    const spot = findFreeSpot(nx, ny, updates.rot !== undefined ? updates.rot : table.rot, others);
+    if (!spot) {
+      return res.status(409).json({
+        error: updates.rot !== undefined && x === undefined ? 'No room to rotate this table here.' : 'No room there — tables cannot overlap.',
+      });
+    }
+    updates.x = spot.x;
+    updates.y = spot.y;
   }
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Nothing to change.' });
 
