@@ -36,11 +36,13 @@ Open http://localhost:5173. The SQLite database is created at `data/lsm.sqlite`.
 
 ## Deployment (Docker Compose + nginx)
 
-On the server:
+`docker-compose.yml` pulls the prebuilt `mrghxst/lsm:latest` image — CI
+rebuilds and pushes it on every push to `main` or `my-build`, so no local
+build step is needed on the server:
 
 ```bash
 git clone <this repo> lsm && cd lsm
-docker compose up -d --build
+docker compose up -d
 ```
 
 The app listens on `127.0.0.1:3000` (not exposed publicly). The SQLite database is
@@ -65,9 +67,10 @@ required — without them the live updates (SSE) stall behind nginx.
 ### Updating
 
 ```bash
-git pull
-docker compose up -d --build
+docker compose up -d
 ```
+
+`pull_policy: always` means this always fetches the latest pushed image first — no `git pull` needed on the server unless `docker-compose.yml` itself changed.
 
 ## How it works
 

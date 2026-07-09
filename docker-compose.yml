@@ -1,6 +1,7 @@
 services:
   lsm:
-    build: .
+    image: mrghxst/lsm:latest
+    pull_policy: always
     restart: unless-stopped
     ports:
       # Reachable from the whole LAN. Once nginx fronts the app, tighten this
