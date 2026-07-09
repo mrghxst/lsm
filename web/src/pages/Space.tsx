@@ -303,8 +303,6 @@ export function Space() {
 
         <SummaryBar state={state} />
 
-        <VotesBar votes={state.votes} onOpen={() => setVotesOpen(true)} />
-
         <div className="room-wrap">
           <Room tables={tables} currentUserId={user.id} onTap={(id, seat) => setSelected({ id, seat })} onMove={actions.move} />
         </div>
@@ -321,6 +319,8 @@ export function Space() {
 
       <aside className="space-side">
         <PeopleList tables={tables} />
+
+        <VotesBar votes={state.votes} onOpen={() => setVotesOpen(true)} />
 
         {canManageSession && (
           <button

@@ -966,8 +966,24 @@ body {
   }
 
   .space-side .people,
-  .space-side .end-space {
+  .space-side .end-space,
+  .space-side .vote-bar {
     margin-top: 0;
+  }
+
+  /* Sidebar stacks End · Votes · People on desktop (the empty area under the
+     End button), while the DOM order keeps the destructive End button last
+     on the phone's single-column flow. */
+  .space-side .end-space {
+    order: 0;
+  }
+
+  .space-side .vote-bar {
+    order: 1;
+  }
+
+  .space-side .people {
+    order: 2;
   }
 
   .room-wrap {
@@ -1092,6 +1108,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 6px;
 }
 
 .vote-chip {
