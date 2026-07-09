@@ -21,6 +21,7 @@ keeps the group, its code and its members for tomorrow.
 - **Admin panel** — the account named in `ADMIN_USERNAME` sees all spaces and users at `/admin`, can delete either (e.g. offensive names), and generates the one-time invite codes new members need to register
 - **Persistent groups** — 6-character codes / shareable links that stay valid; your home screen shows each group's live status
 - **Auto-reset** — sessions end themselves after 16 hours (one study day); the group stays
+- **Tomorrow pledges** — the last one out is prompted to end the session; everyone who took part gets a push asking "coming back tomorrow?" — one tap signals intent (no time needed), so the first person there next morning knows what table size to grab, and fellow pledgers get a small motivational nudge
 
 ## Local development
 
@@ -89,7 +90,9 @@ GET    /api/me/spaces                          your groups with live stats
 GET    /api/spaces/:code                       full space state (also joins you to the group)
 GET    /api/spaces/:code/events                SSE live updates
 POST   /api/spaces/:code/sessions              {tableCount, defaultCapacity} set up today's session (notifies members)
-PATCH  /api/spaces/:code                       {status: 'idle'} end session (opener/owner)
+PATCH  /api/spaces/:code                       {status: 'idle'} end session (opener/owner, or anyone once all seats are free)
+POST   /api/spaces/:code/tomorrow              pledge "I'll be back tomorrow" (no time needed)
+DELETE /api/spaces/:code/tomorrow              withdraw the pledge
 DELETE /api/spaces/:code                       delete the group forever (owner/admin)
 POST   /api/spaces/:code/tables/:id/claims     {eta: 'now' | 'HH:MM'} join/move
 POST   /api/spaces/:code/tables/:id/guests     {name, eta} reserve for a friend

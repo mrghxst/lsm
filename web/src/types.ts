@@ -40,9 +40,17 @@ export interface SpaceInfo {
   createdAt: number;
 }
 
+// "I'll be back tomorrow" pledge — intent only, no arrival time.
+export interface TomorrowPledge {
+  userId: number;
+  username: string;
+  color: string;
+}
+
 export interface SpaceState {
   space: SpaceInfo;
   tables: Table[];
+  tomorrow: TomorrowPledge[];
 }
 
 export interface GroupSummary {

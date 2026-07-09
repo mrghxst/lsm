@@ -87,6 +87,27 @@ CREATE TABLE IF NOT EXISTS invite_codes (
   used_at INTEGER
 );
 
+-- Everyone who held a seat at some point during the current session, kept
+-- so the end-of-session "sign up for tomorrow" reminder also reaches people
+-- who already left. Cleared when the next session opens.
+CREATE TABLE IF NOT EXISTS session_participants (
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (space_id, user_id)
+);
+
+-- "I'll be back tomorrow" pledges — no arrival time, just intent, so the
+-- first person there the next morning knows what table size to reserve.
+-- for_date is the Zurich calendar day the pledge is for; rows are consumed
+-- when the next session opens and ignored once for_date is in the past.
+CREATE TABLE IF NOT EXISTS tomorrow_signups (
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  for_date TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (space_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_tables_space ON tables(space_id);
 CREATE INDEX IF NOT EXISTS idx_claims_table ON claims(table_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_expiry ON auth_tokens(expires_at);
