@@ -2,11 +2,13 @@ import { LUNCH_PLACES, ORIENT_FACILITY_ID } from './votes.js';
 
 // Today's lunch menus, proxied from ETH's public gastronomy API ("Cookpit",
 // the same source as the ethz.ch menu pages). Proxied server-side because
-// the API sends no CORS headers, and cached because the menus only change
-// once a day.
+// the API sends no CORS headers. Only lightly cached: mensas edit their
+// menus and add dish photos through the morning (some spots quite late), so
+// whenever someone actually opens the menu we want near-current data — the
+// short window just coalesces a burst of viewers into one upstream call.
 const API = 'https://idapps.ethz.ch/cookpit-pub-services/v1/weeklyrotas';
 const CLIENT = 'ethz-wcms'; // the meal-photo endpoint wants the same client id
-const CACHE_MS = 6 * 3600 * 1000;
+const CACHE_MS = 3 * 60 * 1000;
 const cache = new Map(); // facilityId -> { at, date, meals }
 
 // Orient Catering isn't on the ETH API — this is their printed Dürüm card.
@@ -89,8 +91,10 @@ export async function menusHandler(req, res) {
         cache.set(p.facilityId, { at: Date.now(), date, meals });
         return { facilityId: p.facilityId, label: p.label, meals };
       } catch {
-        // ETH API down or slow — show the vote without menus rather than fail.
-        return { facilityId: p.facilityId, label: p.label, meals: [] };
+        // ETH API down or slow — fall back to today's last good menu if we
+        // have one, else show the vote without menus rather than fail.
+        const meals = hit && hit.date === date ? hit.meals : [];
+        return { facilityId: p.facilityId, label: p.label, meals };
       }
     }),
   );
