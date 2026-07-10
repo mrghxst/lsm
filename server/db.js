@@ -156,6 +156,24 @@ CREATE TABLE IF NOT EXISTS timer_participants (
   PRIMARY KEY (timer_id, user_id)
 );
 
+-- Session-scoped room chat: only people with a seat today can write, and
+-- the log is wiped with the session. Mutes are a lasting per-person
+-- preference (no pushes, no unread badge) and survive sessions.
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS chat_mutes (
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (space_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_space ON chat_messages(space_id);
 CREATE INDEX IF NOT EXISTS idx_timers_space ON timers(space_id);
 CREATE INDEX IF NOT EXISTS idx_votes_space ON votes(space_id);
 CREATE INDEX IF NOT EXISTS idx_vote_options_vote ON vote_options(vote_id);

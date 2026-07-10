@@ -88,6 +88,22 @@ export interface FocusTimer {
   participants: TimerParticipant[];
 }
 
+export interface ChatMessage {
+  id: number;
+  userId: number;
+  username: string;
+  color: string;
+  body: string;
+  createdAt: number;
+}
+
+// Session-scoped room chat. muted lists users who opted out of pushes and
+// the unread badge; the log is wiped when the session ends.
+export interface ChatState {
+  messages: ChatMessage[];
+  muted: number[];
+}
+
 export interface Meal {
   line: string;
   name: string;
@@ -108,6 +124,7 @@ export interface SpaceState {
   tomorrow: TomorrowPledge[];
   votes: Vote[];
   timer: FocusTimer | null;
+  chat: ChatState;
 }
 
 export interface GroupSummary {

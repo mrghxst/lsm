@@ -11,6 +11,7 @@ import { ClaimSheet } from '../components/ClaimSheet';
 import { Stepper } from '../components/Stepper';
 import { VotesBar, VoteSheet } from '../components/Votes';
 import { FocusTimerCard } from '../components/FocusTimer';
+import { RoomChat } from '../components/Chat';
 
 export function Space() {
   const { code = '' } = useParams();
@@ -308,6 +309,15 @@ export function Space() {
       void mutate(`/api/spaces/${code}/timers/${timerId}`, { method: 'DELETE' }, { close: false }),
   };
 
+  const chatActions = {
+    sendMessage: (text: string) =>
+      void mutate(`/api/spaces/${code}/chat`, { method: 'POST', body: { text } }, { close: false }),
+    setChatMuted: (muted: boolean) =>
+      void mutate(`/api/spaces/${code}/chat/mute`, { method: 'POST', body: { muted } }, { close: false }),
+  };
+  // Writing needs a seat of your own today; reading is open to anyone here.
+  const hasSeat = tables.some((t) => t.claims.some((c) => c.userId === user.id && !c.guestName));
+
   return (
     <div className="app space-layout">
       <div className="space-main">
@@ -371,6 +381,8 @@ export function Space() {
           actions={actions}
         />
       )}
+
+      <RoomChat chat={state.chat} userId={user.id} code={code} canChat={hasSeat} actions={chatActions} />
 
       {toast && <div className="toast">{toast}</div>}
     </div>
