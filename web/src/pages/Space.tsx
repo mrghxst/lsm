@@ -10,6 +10,7 @@ import { PeopleList } from '../components/PeopleList';
 import { ClaimSheet } from '../components/ClaimSheet';
 import { Stepper } from '../components/Stepper';
 import { VotesBar, VoteSheet } from '../components/Votes';
+import { FocusTimerCard } from '../components/FocusTimer';
 
 export function Space() {
   const { code = '' } = useParams();
@@ -296,6 +297,17 @@ export function Space() {
       void mutate(`/api/spaces/${code}/votes/${voteId}`, { method: 'DELETE' }, { close: false }),
   };
 
+  const timerActions = {
+    startTimer: (minutes: number) =>
+      void mutate(`/api/spaces/${code}/timers`, { method: 'POST', body: { minutes } }, { close: false }),
+    joinTimer: (timerId: number) =>
+      void mutate(`/api/spaces/${code}/timers/${timerId}/join`, { method: 'POST' }, { close: false }),
+    leaveTimer: (timerId: number) =>
+      void mutate(`/api/spaces/${code}/timers/${timerId}/join`, { method: 'DELETE' }, { close: false }),
+    cancelTimer: (timerId: number) =>
+      void mutate(`/api/spaces/${code}/timers/${timerId}`, { method: 'DELETE' }, { close: false }),
+  };
+
   return (
     <div className="app space-layout">
       <div className="space-main">
@@ -321,6 +333,8 @@ export function Space() {
         <PeopleList tables={tables} />
 
         <VotesBar votes={state.votes} onOpen={() => setVotesOpen(true)} />
+
+        <FocusTimerCard timer={state.timer} userId={user.id} canManage={canManageSession} actions={timerActions} />
 
         {canManageSession && (
           <button

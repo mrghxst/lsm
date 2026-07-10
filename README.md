@@ -23,6 +23,7 @@ keeps the group, its code and its members for tomorrow.
 - **Auto-reset** — sessions end themselves after 28 hours (a long study day into the next); the group stays
 - **Tomorrow pledges** — the last one out is prompted to end the session; everyone who took part gets a push asking "coming back tomorrow?" — one tap signals intent (no time needed), so the first person there next morning knows what table size to grab, and fellow pledgers get a small motivational nudge
 - **Votes** — WhatsApp-style polls per session: anyone starts one with a question and as many options as needed (a yes/no is just a two-option poll), everyone can add further options, results fill live progress bars, and ballots can be changed or retracted anytime. A one-tap **"Where to eat lunch?"** button starts a vote preloaded with the ETH Zentrum spots (Clausiusbar, Archimedes, Polysnack, Obere/Untere Mensa, Orient Catering) — ℹ️ shows today's live menus straight from ETH's gastronomy API (plus Orient Catering's Dürüm card), each person may suggest at most one extra place per day, and non-voters get one reminder push at 11:00. Dish names carrying a photo show a 📷 you can tap to peek at how it looks — hidden by default so the menu stays scannable. A slim chip shows just the current leader; details live in an overlay
+- **Focus timer** — anyone starts a shared 45 / 60 / 90 min (or custom) round; everyone else in the session gets a push invite and the first 10% of the round to join. A circular ring drains around the countdown, everyone who joined is shown by name to pull the rest in, and when the round rings all participants get a "break time" push. One round at a time per space; the break card lingers ~10 min or until dismissed
 
 ## Local development
 
@@ -104,6 +105,10 @@ POST   /api/spaces/:code/votes                 {title, options[]} start a poll �
 DELETE /api/spaces/:code/votes/:id             remove a vote (creator/manager)
 POST   /api/spaces/:code/votes/:id/options     {label} add an option (lunch vote: max 1 extra per person)
 POST   /api/spaces/:code/votes/:id/ballots     {optionId} cast/change ballot (null = retract)
+POST   /api/spaces/:code/timers                {minutes} start a focus round (invites the session)
+POST   /api/spaces/:code/timers/:id/join       join — open for the first 10% of the round
+DELETE /api/spaces/:code/timers/:id/join       step out (last one out stops the round)
+DELETE /api/spaces/:code/timers/:id            stop a round (starter/manager) or dismiss a finished one
 GET    /api/menus                              today's menus of the lunch spots, incl. per-dish photo URLs (cached)
 GET    /api/push/key                           VAPID public key
 POST   /api/push/subscribe                     {subscription} enable notifications

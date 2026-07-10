@@ -137,6 +137,26 @@ CREATE TABLE IF NOT EXISTS vote_ballots (
   PRIMARY KEY (vote_id, user_id)
 );
 
+-- Shared focus timers ("let's do 60 minutes"): one per space at a time,
+-- joining is open for the first tenth of the round. break_sent marks the
+-- end-of-round push as delivered. Wiped together with the session.
+CREATE TABLE IF NOT EXISTS timers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  started_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  duration_s INTEGER NOT NULL,
+  started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  break_sent INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS timer_participants (
+  timer_id INTEGER NOT NULL REFERENCES timers(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (timer_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_timers_space ON timers(space_id);
 CREATE INDEX IF NOT EXISTS idx_votes_space ON votes(space_id);
 CREATE INDEX IF NOT EXISTS idx_vote_options_vote ON vote_options(vote_id);
 CREATE INDEX IF NOT EXISTS idx_tables_space ON tables(space_id);

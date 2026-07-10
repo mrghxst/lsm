@@ -967,23 +967,28 @@ body {
 
   .space-side .people,
   .space-side .end-space,
-  .space-side .vote-bar {
+  .space-side .vote-bar,
+  .space-side .timer-card {
     margin-top: 0;
   }
 
-  /* Sidebar stacks End · Votes · People on desktop (the empty area under the
-     End button), while the DOM order keeps the destructive End button last
-     on the phone's single-column flow. */
+  /* Sidebar stacks End · Timer · Votes · People on desktop (the empty area
+     under the End button), while the DOM order keeps the destructive End
+     button last on the phone's single-column flow. */
   .space-side .end-space {
     order: 0;
   }
 
-  .space-side .vote-bar {
+  .space-side .timer-card {
     order: 1;
   }
 
-  .space-side .people {
+  .space-side .vote-bar {
     order: 2;
+  }
+
+  .space-side .people {
+    order: 3;
   }
 
   .room-wrap {
@@ -1103,6 +1108,149 @@ body {
 }
 
 /* ---------- votes ---------- */
+
+/* ---- shared focus timer ---- */
+
+.timer-card {
+  margin-top: 12px;
+}
+
+.timer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timer-head .section-title {
+  flex: 1;
+}
+
+.timer-hint {
+  margin: 0;
+}
+
+.timer-presets {
+  display: flex;
+  gap: 8px;
+}
+
+.timer-preset {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.timer-preset small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.timer-preset.active small {
+  color: inherit;
+}
+
+/* The ring drains clockwise as the round runs down; the number in the
+   middle is the source of truth, the ring is the glanceable version. */
+.timer-ring-wrap {
+  position: relative;
+  width: 172px;
+  margin: 2px auto;
+}
+
+.timer-ring {
+  display: block;
+  width: 100%;
+}
+
+.timer-ring-track {
+  fill: none;
+  stroke: var(--card-2);
+  stroke-width: 10;
+}
+
+.timer-ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s linear, stroke 0.3s ease;
+}
+
+/* While the join window is open the ring breathes to invite a tap. */
+.timer-ring-fill.joinable {
+  stroke: var(--green);
+  animation: timer-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes timer-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.timer-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.timer-time {
+  font-size: 32px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.timer-emoji {
+  font-size: 36px;
+}
+
+.timer-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.timer-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.timer-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.timer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.timer-in {
+  font-weight: 700;
+  color: var(--green);
+}
 
 .vote-bar {
   display: flex;

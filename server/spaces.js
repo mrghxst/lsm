@@ -6,10 +6,12 @@ import { subscribe, broadcast } from './events.js';
 import { colorFor } from './colors.js';
 import { notifyUsers } from './push.js';
 import { votesRouter, votesForState, clearVotes } from './votes.js';
+import { timersRouter, timerForState, clearTimers } from './timers.js';
 
 export const spacesRouter = Router();
 spacesRouter.use(requireAuth);
 spacesRouter.use('/:code/votes', votesRouter);
+spacesRouter.use('/:code/timers', timersRouter);
 
 // No 0/O/1/I/L to keep codes easy to read out loud.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -117,6 +119,7 @@ export function getSpaceState(code) {
     })),
     tomorrow: tomorrowPledges(space.id),
     votes: votesForState(space.id),
+    timer: timerForState(space.id),
   };
 }
 
@@ -300,6 +303,7 @@ spacesRouter.post('/:code/sessions', (req, res) => {
     addParticipant(space.id, req.user.id);
     createTables(space.id, params.tableCount, params.defaultCapacity);
     clearVotes(space.id);
+    clearTimers(space.id);
   })();
   notify(space, memberIds(space.id), req.user.id,
     `${req.user.username} set up the space — ${params.tableCount} ${params.tableCount === 1 ? 'table' : 'tables'}, ${params.tableCount * params.defaultCapacity} seats. Who's coming?`);
@@ -318,6 +322,7 @@ function endSession(space) {
     db.prepare('DELETE FROM tables WHERE space_id = ?').run(space.id);
     db.prepare('DELETE FROM session_participants WHERE space_id = ?').run(space.id);
     clearVotes(space.id);
+    clearTimers(space.id);
     db.prepare("UPDATE spaces SET status = 'idle', opened_by = NULL, opened_at = NULL WHERE id = ?").run(space.id);
   })();
   return [...ids];

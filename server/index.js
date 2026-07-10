@@ -9,6 +9,7 @@ import { spacesRouter, sweepExpired, listUserSpaces, getSpaceState } from './spa
 import { adminRouter } from './admin.js';
 import { vapidPublicKey, saveSubscription, removeSubscription } from './push.js';
 import { sendLunchReminders } from './votes.js';
+import { sweepTimers } from './timers.js';
 import { menusHandler } from './menus.js';
 
 const app = express();
@@ -92,6 +93,8 @@ sweepExpired();
 // Checked every 5 minutes so the 11:00 (Zurich) lunch-vote reminder lands
 // early in the hour; reminder_sent keeps it to one push per vote.
 setInterval(sendLunchReminders, 5 * 60 * 1000).unref();
+// Every 30s so the "break time" push lands right when a focus round ends.
+setInterval(sweepTimers, 30 * 1000).unref();
 setInterval(() => {
   db.prepare('DELETE FROM auth_tokens WHERE expires_at < unixepoch()').run();
 }, 24 * 3600 * 1000).unref();

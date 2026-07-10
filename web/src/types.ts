@@ -69,6 +69,25 @@ export interface Vote {
   options: VoteOption[];
 }
 
+export interface TimerParticipant {
+  userId: number;
+  username: string;
+  color: string;
+}
+
+// Shared focus round: the client renders the countdown from endsAt itself;
+// joining is only open until joinUntil (first 10% of the round).
+export interface FocusTimer {
+  id: number;
+  durationS: number;
+  startedAt: number;
+  endsAt: number;
+  joinUntil: number;
+  startedBy: number | null;
+  startedByName: string | null;
+  participants: TimerParticipant[];
+}
+
 export interface Meal {
   line: string;
   name: string;
@@ -88,6 +107,7 @@ export interface SpaceState {
   tables: Table[];
   tomorrow: TomorrowPledge[];
   votes: Vote[];
+  timer: FocusTimer | null;
 }
 
 export interface GroupSummary {
