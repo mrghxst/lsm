@@ -1,24 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Claim, Table } from '../types';
 import { claimColor } from '../util';
 
-// The virtual room is CANVAS x the viewport in each dimension; the default
-// view (scale = MIN_SCALE) shows all of it.
+// The virtual room is CANVAS x the viewport in each dimension; scale =
+// MIN_SCALE shows the whole board. Normally, though, the view auto-frames
+// just the occupied part (see framableView).
 const CANVAS = 2;
 const MIN_SCALE = 1 / CANVAS;
 const MAX_SCALE = 3;
 const FIT_VIEW = { scale: MIN_SCALE, tx: 0, ty: 0 };
+// Empty cells kept on every side of the tables when auto-framing.
+const FRAME_MARGIN = 3;
 
 function clampPos(v: number) {
   return Math.min(0.94, Math.max(0.06, v));
 }
 
-// The canvas is an 8x8 board of half-table cells (keep in sync with
+// The canvas is a 32x32 board of half-table cells (keep in sync with
 // server/db.js): a table covers 2x1 cells, rotated 1x2, so snapped
 // tables sit flush against each other.
-const GRID_CELL = 0.125;
-const CELLS = 8;
+const GRID_CELL = 1 / 32;
+const CELLS = 32;
+const CELL_PCT = GRID_CELL * 100; // one cell as a % of the canvas
 
 interface Placement {
   leftCell: number;
@@ -95,6 +99,30 @@ function clampView(view: View, w: number, h: number): View {
   };
 }
 
+// The view that frames exactly the tables: a square window around their
+// bounding box with FRAME_MARGIN empty cells on every side, centred. This
+// is what keeps the board feeling "always the perfect size" — it recomputes
+// whenever the tables change and the room quietly rescales to it.
+function framableView(tables: Table[], w: number, h: number): View {
+  if (tables.length === 0 || w === 0) return FIT_VIEW;
+  let minC = Infinity;
+  let minR = Infinity;
+  let maxC = -Infinity;
+  let maxR = -Infinity;
+  for (const t of tables) {
+    const p = tablePlacement(t.x, t.y, t.rot);
+    minC = Math.min(minC, p.leftCell);
+    minR = Math.min(minR, p.topCell);
+    maxC = Math.max(maxC, p.leftCell + p.wc);
+    maxR = Math.max(maxR, p.topCell + p.hc);
+  }
+  const side = Math.max(maxC - minC, maxR - minR) + FRAME_MARGIN * 2; // square, >=3 cells/side
+  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, 1 / (side * GRID_CELL * CANVAS)));
+  const cx = ((minC + maxC) / 2) * GRID_CELL; // cluster centre, board fraction
+  const cy = ((minR + maxR) / 2) * GRID_CELL;
+  return { scale, tx: w / 2 - cx * CANVAS * w * scale, ty: h / 2 - cy * CANVAS * h * scale };
+}
+
 function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
   if (!claim) return <div className="segment empty" />;
   const color = claimColor(claim);
@@ -142,6 +170,24 @@ export function Room({
   const gesture = useRef<Gesture | null>(null);
   const dragRef = useRef<DragInfo | null>(null);
   const [live, setLive] = useState<{ id: number; x: number; y: number } | null>(null);
+  // In auto mode the view tracks the tables (framed with a margin). Any
+  // manual pan/zoom drops out of it; the ⤢ button switches it back on.
+  const [auto, setAuto] = useState(true);
+
+  // Re-frame whenever the tables (or the room size) change, while auto. A
+  // layout effect so the first paint is already framed (no zoom-in on load).
+  useLayoutEffect(() => {
+    const el = outerRef.current;
+    if (!el || !auto) return;
+    const refit = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0) setView(framableView(tables, r.width, r.height));
+    };
+    refit();
+    const ro = new ResizeObserver(refit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tables, auto]);
 
   function cancelDrag() {
     dragRef.current = null;
@@ -163,6 +209,7 @@ export function Room({
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      setAuto(false);
       const rect = el.getBoundingClientRect();
       zoomAt(e.clientX - rect.left, e.clientY - rect.top, viewRef.current.scale * (e.deltaY < 0 ? 1.07 : 1 / 1.07));
     };
@@ -175,6 +222,7 @@ export function Room({
 
   function startPinch() {
     cancelDrag();
+    setAuto(false);
     const v = viewRef.current;
     const [a, b] = [...pointers.current.values()];
     gesture.current = {
@@ -206,6 +254,7 @@ export function Room({
     if (pointers.current.size === 2) {
       startPinch();
     } else if (pointers.current.size === 1 && !onTable) {
+      setAuto(false);
       const v = viewRef.current;
       gesture.current = { type: 'pan', startX: e.clientX, startY: e.clientY, origTx: v.tx, origTy: v.ty };
     } else if (pointers.current.size === 1) {
@@ -305,6 +354,7 @@ export function Room({
   }
 
   function buttonZoom(factor: number) {
+    setAuto(false);
     const rect = outerRef.current?.getBoundingClientRect();
     if (!rect) return;
     zoomAt(rect.width / 2, rect.height / 2, viewRef.current.scale * factor);
@@ -320,7 +370,7 @@ export function Room({
       onPointerCancel={bgPointerUp}
     >
       <div
-        className="room-canvas"
+        className={`room-canvas${auto ? ' animate' : ''}`}
         ref={canvasRef}
         style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}
       >
@@ -339,7 +389,7 @@ export function Room({
                 style={{
                   left: `${s.x * 100}%`,
                   top: `${s.y * 100}%`,
-                  width: horizontal ? '25%' : '12.5%',
+                  width: horizontal ? `${2 * CELL_PCT}%` : `${CELL_PCT}%`,
                   aspectRatio: horizontal ? '2 / 1' : '1 / 2',
                 }}
               />
@@ -362,7 +412,7 @@ export function Room({
               style={{
                 left: `${pos.x * 100}%`,
                 top: `${pos.y * 100}%`,
-                width: horizontal ? '25%' : '12.5%',
+                width: horizontal ? `${2 * CELL_PCT}%` : `${CELL_PCT}%`,
                 aspectRatio: horizontal ? '2 / 1' : '1 / 2',
               }}
               onPointerDown={(e) => onPointerDown(e, t)}
@@ -394,7 +444,7 @@ export function Room({
         <button className="zoom-btn" onClick={() => buttonZoom(1 / 1.3)} aria-label="Zoom out">
           −
         </button>
-        <button className="zoom-btn" onClick={() => setView(FIT_VIEW)} aria-label="Show the whole room">
+        <button className="zoom-btn" onClick={() => setAuto(true)} aria-label="Fit the tables">
           ⤢
         </button>
       </div>

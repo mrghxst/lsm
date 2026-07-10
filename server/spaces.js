@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
-import { db, gridPositions, tablePlacement, findFreeSpot, findAnyFreeSpot } from './db.js';
+import { db, gridPositions, tablePlacement, findFreeSpot } from './db.js';
 import { requireAuth } from './auth.js';
 import { subscribe, broadcast } from './events.js';
 import { colorFor } from './colors.js';
@@ -220,10 +220,22 @@ function notify(space, recipientIds, actorId, body) {
 }
 
 function createTables(spaceId, tableCount, capacity) {
-  const insertTable = db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, ?, ?, ?)');
+  const insertTable = db.prepare('INSERT INTO tables (space_id, label, capacity, x, y, rot) VALUES (?, ?, ?, ?, ?, ?)');
   const positions = gridPositions(tableCount);
   for (let i = 0; i < tableCount; i++) {
-    insertTable.run(spaceId, `T${i + 1}`, capacity, positions[i].x, positions[i].y);
+    insertTable.run(spaceId, `T${i + 1}`, capacity, positions[i].x, positions[i].y, positions[i].rot);
+  }
+}
+
+// Re-tidy every table in a space back into the canonical block. Used after
+// a table is added or removed so the arrangement (and the odd-one-out
+// vertical table) always stays clean, regardless of the new count.
+function relayoutTables(spaceId) {
+  const tables = db.prepare('SELECT id FROM tables WHERE space_id = ? ORDER BY id').all(spaceId);
+  const positions = gridPositions(tables.length);
+  const upd = db.prepare('UPDATE tables SET x = ?, y = ?, rot = ? WHERE id = ?');
+  for (let i = 0; i < tables.length; i++) {
+    upd.run(positions[i].x, positions[i].y, positions[i].rot, tables[i].id);
   }
 }
 
@@ -507,21 +519,24 @@ spacesRouter.delete('/:code/claims/:claimId', (req, res) => {
   sendUpdate(space, res);
 });
 
-// Anyone in the session can add a table.
+// Anyone in the session can add a table; the whole block re-tidies so the
+// newcomer slots into the canonical two-row arrangement.
 spacesRouter.post('/:code/tables', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
-  const tables = db.prepare('SELECT label, x, y, rot FROM tables WHERE space_id = ?').all(space.id);
+  const tables = db.prepare('SELECT label FROM tables WHERE space_id = ?').all(space.id);
   if (tables.length >= 20) return res.status(409).json({ error: 'Maximum of 20 tables reached.' });
-  const spot = findAnyFreeSpot(0, tables.map((t) => tablePlacement(t.x, t.y, t.rot)));
-  if (!spot) return res.status(409).json({ error: 'No space left in the room for another table.' });
   const maxNum = tables.reduce((m, t) => Math.max(m, Number(/^T(\d+)$/.exec(t.label)?.[1] ?? 0)), 0);
-  db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 1, ?, ?)')
-    .run(space.id, `T${maxNum + 1}`, spot.x, spot.y);
+  db.transaction(() => {
+    db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 1, 0.5, 0.5)')
+      .run(space.id, `T${maxNum + 1}`);
+    relayoutTables(space.id);
+  })();
   sendUpdate(space, res);
 });
 
-// Anyone in the session can remove an empty table.
+// Anyone in the session can remove an empty table; the rest re-tidy to
+// close the gap.
 spacesRouter.delete('/:code/tables/:tableId', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
@@ -529,7 +544,10 @@ spacesRouter.delete('/:code/tables/:tableId', (req, res) => {
   if (!table) return res.status(404).json({ error: 'Table not found.' });
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM claims WHERE table_id = ?').get(table.id);
   if (n > 0) return res.status(409).json({ error: 'People are on this table — it cannot be removed.' });
-  db.prepare('DELETE FROM tables WHERE id = ?').run(table.id);
+  db.transaction(() => {
+    db.prepare('DELETE FROM tables WHERE id = ?').run(table.id);
+    relayoutTables(space.id);
+  })();
   sendUpdate(space, res);
 });
 

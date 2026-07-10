@@ -14,7 +14,7 @@ keeps the group, its code and its members for tomorrow.
 - **No-friction accounts** — name + PIN + a personal color; registering needs a one-time invite code from an admin (the first account and `ADMIN_USERNAME` bootstrap without one)
 - **Live sync** — every phone updates instantly via Server-Sent Events
 - **Top-down room view** — tables are drawn as split rectangles, one segment per seat, filled with each person's color (outlined = coming, solid = arrived)
-- **Collaborative table setup** — everyone in the session can add/remove tables, set seat counts, drag tables around the room and rotate them 90°; the room canvas pans and zooms (pinch or scroll) for big layouts
+- **Collaborative table setup** — everyone in the session can add/remove tables, set seat counts, drag tables around the room and rotate them 90°. Tables spawn as a tidy centred block two rows tall (pairs stacked into columns, the odd one out rotated vertical to fill a column), and adding/removing re-tidies it. The board auto-frames the tables — always square and symmetric with a few empty cells of breathing room on every side — and glides to resize as you drag, so it always feels the perfect size (pinch/scroll to override, ⤢ to snap back)
 - **Guest seats** — reserve a seat for a friend without the app, shown as "friend of ‹member›"
 - **Push notifications** — installable PWA; the whole group is notified when someone sets up the space in the morning, participants when people join/arrive/leave (on iPhone: add to Home Screen first, then enable — iOS requirement)
 - **Smart summary** — "1 here · 2 coming (next ~16:30) · 5 free seats"

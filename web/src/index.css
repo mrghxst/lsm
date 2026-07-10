@@ -391,10 +391,16 @@ body {
   width: 200%;
   height: 200%;
   transform-origin: 0 0;
-  /* graph paper aligned to the half-table snap grid (8x8 cells) */
+  /* graph paper aligned to the half-table snap grid (32x32 cells) */
   background-image: linear-gradient(rgba(44, 54, 68, 0.7) 1px, transparent 1px),
     linear-gradient(90deg, rgba(44, 54, 68, 0.7) 1px, transparent 1px);
-  background-size: 12.5% 12.5%;
+  background-size: 3.125% 3.125%;
+}
+
+/* When the view is auto-framing the tables, glide to the new frame so
+   adding/moving a table feels like the board was always the right size. */
+.room-canvas.animate {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .rtable-ghost {
@@ -448,6 +454,13 @@ body {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+  /* glide when the block re-tidies (add/remove); off mid-drag, see below */
+  transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rtable.dragging,
+.rtable.dragging * {
+  transition: none;
 }
 
 .rtable.mine {
