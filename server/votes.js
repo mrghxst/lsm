@@ -5,18 +5,22 @@ import { getSpaceState } from './spaces.js';
 import { notifyUsers } from './push.js';
 import { colorFor } from './colors.js';
 
+// Orient Catering isn't ETH-run, so it has no Cookpit facility. -1 is a
+// sentinel: the menu handler serves its printed Dürüm card for this id
+// instead of hitting the ETH API.
+export const ORIENT_FACILITY_ID = -1;
+
 // The lunch spots around ETH Zentrum. facilityId is the ETH gastronomy
 // ("Cookpit") facility used for the live menu view; the API has no separate
 // entries for the two Polyterrasse floors, so Untere Mensa maps to Mensa
 // Polyterrasse and Obere Mensa to Einstein & Zweistein (its upper floor).
-// Orient Catering is not ETH-run, so it has no menu.
 export const LUNCH_PLACES = [
   { label: 'Clausiusbar', facilityId: 3 },
   { label: 'Archimedes', facilityId: 8 },
   { label: 'Polysnack', facilityId: 10 },
   { label: 'Obere Mensa', facilityId: 6 },
   { label: 'Untere Mensa', facilityId: 9 },
-  { label: 'Orient Catering', facilityId: null },
+  { label: 'Orient Catering', facilityId: ORIENT_FACILITY_ID },
 ];
 
 function zurichHour() {

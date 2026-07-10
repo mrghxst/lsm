@@ -46,6 +46,8 @@ export function VotesBar({ votes, onOpen }: { votes: Vote[]; onOpen(): void }) {
 }
 
 function MenuDetail({ menus, facilityId }: { menus: FacilityMenu[] | null; facilityId: number }) {
+  // Photos stay hidden until you ask: tap a dish name (📷) to peek at one.
+  const [shownPhoto, setShownPhoto] = useState<number | null>(null);
   if (!menus) return <p className="hint menu-detail">Loading today's menu…</p>;
   const menu = menus.find((m) => m.facilityId === facilityId);
   if (!menu || menu.meals.length === 0) {
@@ -55,12 +57,28 @@ function MenuDetail({ menus, facilityId }: { menus: FacilityMenu[] | null; facil
     <ul className="menu-detail">
       {menu.meals.map((meal, i) => (
         <li key={i}>
-          <span className="menu-line">{meal.line}</span>
-          <span className="menu-meal">
-            {meal.name}
-            {meal.description && <span className="menu-desc"> — {meal.description}</span>}
-          </span>
-          {meal.price !== null && <span className="menu-price">{meal.price.toFixed(2)}</span>}
+          <div className="menu-row">
+            <span className="menu-line">{meal.line}</span>
+            <span className="menu-meal">
+              {meal.image ? (
+                <button
+                  type="button"
+                  className="menu-name-btn"
+                  title="Peek at the photo"
+                  onClick={() => setShownPhoto(shownPhoto === i ? null : i)}
+                >
+                  {meal.name} <span className="menu-cam">📷</span>
+                </button>
+              ) : (
+                meal.name
+              )}
+              {meal.description && <span className="menu-desc"> — {meal.description}</span>}
+            </span>
+            {meal.price !== null && <span className="menu-price">{meal.price.toFixed(2)}</span>}
+          </div>
+          {meal.image && shownPhoto === i && (
+            <img className="menu-photo" src={meal.image} alt={meal.name} loading="lazy" />
+          )}
         </li>
       ))}
     </ul>

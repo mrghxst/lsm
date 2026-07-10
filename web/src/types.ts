@@ -74,6 +74,7 @@ export interface Meal {
   name: string;
   description: string;
   price: number | null;
+  image: string | null; // food photo, when the mensa published one
 }
 
 export interface FacilityMenu {

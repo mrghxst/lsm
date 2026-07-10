@@ -1246,8 +1246,43 @@ body {
 
 .menu-detail li {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu-row {
+  display: flex;
   gap: 8px;
   align-items: baseline;
+}
+
+.menu-name-btn {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-name-btn:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.menu-cam {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+.menu-photo {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
 }
 
 .menu-line {
