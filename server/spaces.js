@@ -101,6 +101,7 @@ export function getSpaceState(code) {
       id: t.id,
       label: t.label,
       released: !!t.released,
+      stolen: !!t.stolen,
       capacity: t.capacity,
       x: t.x,
       y: t.y,
@@ -391,6 +392,7 @@ spacesRouter.post('/:code/tables/:tableId/claims', (req, res) => {
   if (!eta) return res.status(400).json({ error: 'Invalid arrival time.' });
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
   if (!table) return res.status(404).json({ error: 'Table not found.' });
+  if (table.stolen) return res.status(409).json({ error: 'This table was taken by someone outside the group.' });
   if (table.released) return res.status(409).json({ error: 'This table has been given back.' });
 
   const join = db.transaction(() => {
@@ -430,6 +432,7 @@ spacesRouter.post('/:code/tables/:tableId/guests', (req, res) => {
   if (!eta) return res.status(400).json({ error: 'Invalid arrival time.' });
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
   if (!table) return res.status(404).json({ error: 'Table not found.' });
+  if (table.stolen) return res.status(409).json({ error: 'This table was taken by someone outside the group.' });
   if (table.released) return res.status(409).json({ error: 'This table has been given back.' });
 
   const seat = pickSeat(table.id, table.capacity, req.body?.seat);
@@ -537,7 +540,7 @@ spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
   if (!table) return res.status(404).json({ error: 'Table not found.' });
 
-  const { released, capacity, x, y, rot } = req.body ?? {};
+  const { released, stolen, capacity, x, y, rot } = req.body ?? {};
   const updates = {};
 
   if (released !== undefined) {
@@ -545,8 +548,23 @@ spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
     if (released) {
       const { n } = db.prepare('SELECT COUNT(*) AS n FROM claims WHERE table_id = ?').get(table.id);
       if (n > 0) return res.status(409).json({ error: 'People are on this table — it cannot be given back.' });
+    } else {
+      updates.stolen = 0; // reserving the table again clears the "taken" mark
     }
     updates.released = released ? 1 : 0;
+  }
+  // Flag a table as taken by someone outside the group. Being taken implies
+  // it is out of our hands, so it also counts as given back.
+  if (stolen !== undefined) {
+    if (typeof stolen !== 'boolean') return res.status(400).json({ error: 'stolen must be true or false.' });
+    if (stolen) {
+      const { n } = db.prepare('SELECT COUNT(*) AS n FROM claims WHERE table_id = ?').get(table.id);
+      if (n > 0) return res.status(409).json({ error: 'People are on this table — it cannot be marked taken.' });
+      updates.stolen = 1;
+      updates.released = 1;
+    } else {
+      updates.stolen = 0;
+    }
   }
   if (capacity !== undefined) {
     if (!Number.isInteger(capacity) || capacity < 1 || capacity > 8) {

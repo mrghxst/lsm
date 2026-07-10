@@ -459,6 +459,12 @@ body {
   border-style: dashed;
 }
 
+.rtable.stolen {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--red);
+}
+
 .rtable.dragging {
   z-index: 5;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
@@ -491,6 +497,31 @@ body {
   letter-spacing: 0.05em;
   text-align: center;
   pointer-events: none;
+}
+
+/* Subtle red candy-stripe fill marking a table grabbed by outsiders. */
+.rtable-stolen {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+  padding: 2px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(239, 85, 99, 0.22) 0,
+    rgba(239, 85, 99, 0.22) 7px,
+    transparent 7px,
+    transparent 14px
+  );
 }
 
 .segments {
@@ -966,29 +997,17 @@ body {
   }
 
   .space-side .people,
-  .space-side .end-space,
   .space-side .vote-bar,
   .space-side .timer-card {
     margin-top: 0;
   }
 
-  /* Sidebar stacks End · Timer · Votes · People on desktop (the empty area
-     under the End button), while the DOM order keeps the destructive End
-     button last on the phone's single-column flow. */
+  /* Sidebar reads top-to-bottom People · Timer · Votes, with the destructive
+     End button pushed to the very bottom (level with the room) by the auto
+     margin. DOM order already matches, so the phone's single-column flow
+     keeps End last too. */
   .space-side .end-space {
-    order: 0;
-  }
-
-  .space-side .timer-card {
-    order: 1;
-  }
-
-  .space-side .vote-bar {
-    order: 2;
-  }
-
-  .space-side .people {
-    order: 3;
+    margin-top: auto;
   }
 
   .room-wrap {
@@ -1275,19 +1294,28 @@ body {
 
 .chat-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
+  top: -6px;
+  right: -6px;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 6px;
   border-radius: 999px;
   background: var(--red);
   color: #fff;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* ring in the page background so the dot reads clearly off the dark button */
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px rgba(239, 85, 99, 0.6), 0 2px 8px rgba(239, 85, 99, 0.5);
+  animation: chat-badge-pop 1.8s ease-in-out infinite;
+}
+
+@keyframes chat-badge-pop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
 }
 
 .chat-panel {

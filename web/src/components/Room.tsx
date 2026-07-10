@@ -356,6 +356,7 @@ export function Room({
                 'rtable' +
                 (mine ? ' mine' : '') +
                 (t.released ? ' released' : '') +
+                (t.stolen ? ' stolen' : '') +
                 (live?.id === t.id ? ' dragging' : '')
               }
               style={{
@@ -370,7 +371,9 @@ export function Room({
               onPointerCancel={onPointerCancel}
             >
               <span className="rtable-tag">{t.label}</span>
-              {t.released ? (
+              {t.stolen ? (
+                <span className="rtable-stolen">taken by others</span>
+              ) : t.released ? (
                 <span className="rtable-released">given back</span>
               ) : (
                 <div className={`segments ${horizontal ? 'srow' : 'scol'}`}>

@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS tables (
   space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
   released INTEGER NOT NULL DEFAULT 0,
+  stolen INTEGER NOT NULL DEFAULT 0,
   capacity INTEGER NOT NULL DEFAULT 1,
   x REAL NOT NULL DEFAULT 0.5,
   y REAL NOT NULL DEFAULT 0.5,
@@ -368,6 +369,13 @@ if (!hasColumn('claims', 'seat')) {
     const claims = db.prepare('SELECT id FROM claims WHERE table_id = ? ORDER BY created_at, id').all(t.table_id);
     claims.forEach((c, i) => setSeat.run(i, c.id));
   }
+}
+
+// A given-back table can be flagged as taken by someone outside the group
+// ("stolen"): stolen always implies released, so every released = 0 seat
+// filter keeps excluding it without change.
+if (!hasColumn('tables', 'stolen')) {
+  db.exec('ALTER TABLE tables ADD COLUMN stolen INTEGER NOT NULL DEFAULT 0');
 }
 
 // When someone actually sat down, for the time-at-table display.

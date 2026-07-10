@@ -21,6 +21,7 @@ export interface Table {
   id: number;
   label: string;
   released: boolean;
+  stolen: boolean; // given back AND grabbed by someone outside the group
   capacity: number;
   x: number; // center, fraction of room width (0..1)
   y: number; // center, fraction of room height (0..1)

@@ -269,6 +269,8 @@ export function Space() {
     },
     setReleased: (tableId: number, released: boolean) =>
       mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { released } }, { close: false }),
+    setStolen: (tableId: number, stolen: boolean) =>
+      mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { stolen } }, { close: false }),
     setCapacity: (tableId: number, capacity: number) =>
       mutate(`/api/spaces/${code}/tables/${tableId}`, { method: 'PATCH', body: { capacity } }, { close: false }),
     rotate: (tableId: number) => {
@@ -342,9 +344,9 @@ export function Space() {
       <aside className="space-side">
         <PeopleList tables={tables} />
 
-        <VotesBar votes={state.votes} onOpen={() => setVotesOpen(true)} />
-
         <FocusTimerCard timer={state.timer} userId={user.id} canManage={canManageSession} actions={timerActions} />
+
+        <VotesBar votes={state.votes} onOpen={() => setVotesOpen(true)} />
 
         {canManageSession && (
           <button
