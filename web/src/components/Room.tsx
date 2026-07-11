@@ -1,32 +1,27 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Claim, Table } from '../types';
 import { claimColor } from '../util';
 
-// The virtual room is CANVAS x the viewport in each dimension; scale =
-// MIN_SCALE shows the whole board. Normally, though, the view auto-frames
-// just the occupied part (see framableView).
+// The virtual room is CANVAS x the viewport in each dimension; the default
+// view (scale = MIN_SCALE) shows all of it.
 const CANVAS = 2;
 const MIN_SCALE = 1 / CANVAS;
 const MAX_SCALE = 3;
 const FIT_VIEW = { scale: MIN_SCALE, tx: 0, ty: 0 };
-// Breathing room around the tables when auto-framing: 1.5 cells beyond the
-// block's long side, which for the usual two-row strip leaves about three
-// visible grid squares of air above and below. Never tighter than the
-// classic 8-squares-across view.
-const FRAME_MARGIN = 1.5;
-const MIN_FRAME_CELLS = 8;
 
-function clampPos(v: number) {
-  return Math.min(0.94, Math.max(0.06, v));
-}
-
-// The canvas is a 32x32 board of half-table cells (keep in sync with
+// Tables snap to a 32x32 board of half-table cells (keep in sync with
 // server/db.js): a table covers 2x1 cells, rotated 1x2, so snapped
 // tables sit flush against each other.
 const GRID_CELL = 1 / 32;
 const CELLS = 32;
-const CELL_PCT = GRID_CELL * 100; // one cell as a % of the canvas
+
+// The canvas shows a square *window* of that board: the smallest square
+// keeping at least FRAME_CELLS empty grid squares between the outermost
+// tables and every edge. A lone table or two-table column yields the
+// classic 8-squares-across room; wider blocks get a slightly bigger one.
+const FRAME_CELLS = 3;
+const HOME_SIDE = 8;
 
 interface Placement {
   leftCell: number;
@@ -86,6 +81,61 @@ function otherPlacements(tables: Table[], excludeId: number): Placement[] {
   return tables.filter((t) => t.id !== excludeId).map((t) => tablePlacement(t.x, t.y, t.rot));
 }
 
+interface Win {
+  c0: number; // leftmost board cell shown (may be a half cell for centring)
+  r0: number;
+  side: number; // window size in cells; the canvas shows side x side squares
+}
+
+const HOME_WIN: Win = { c0: (CELLS - HOME_SIDE) / 2, r0: (CELLS - HOME_SIDE) / 2, side: HOME_SIDE };
+
+// The smallest square window with FRAME_CELLS of air on every side of the
+// block, centred on it. Only one axis can need fractional centring (the
+// other has exactly FRAME_CELLS on both sides), so the split stays
+// symmetric down to the half cell.
+function windowFor(tables: Table[]): Win {
+  if (tables.length === 0) return HOME_WIN;
+  let minC = Infinity;
+  let minR = Infinity;
+  let maxC = -Infinity;
+  let maxR = -Infinity;
+  for (const t of tables) {
+    const p = tablePlacement(t.x, t.y, t.rot);
+    minC = Math.min(minC, p.leftCell);
+    minR = Math.min(minR, p.topCell);
+    maxC = Math.max(maxC, p.leftCell + p.wc);
+    maxR = Math.max(maxR, p.topCell + p.hc);
+  }
+  const side = Math.min(CELLS, Math.max(maxC - minC, maxR - minR) + FRAME_CELLS * 2);
+  const c0 = Math.max(0, Math.min(CELLS - side, minC - (side - (maxC - minC)) / 2));
+  const r0 = Math.max(0, Math.min(CELLS - side, minR - (side - (maxR - minR)) / 2));
+  return { c0, r0, side };
+}
+
+const sameWin = (a: Win, b: Win) => a.c0 === b.c0 && a.r0 === b.r0 && a.side === b.side;
+
+// board fraction -> % of the canvas (which shows exactly the window)
+function winLeft(win: Win, bx: number) {
+  return ((bx * CELLS - win.c0) / win.side) * 100;
+}
+
+function winTop(win: Win, by: number) {
+  return ((by * CELLS - win.r0) / win.side) * 100;
+}
+
+// Keep a dragged table fully inside the visible window.
+function clampToWin(x: number, y: number, rot: 0 | 90, win: Win) {
+  const hw = (rot === 0 ? 1 : 0.5) * GRID_CELL;
+  const hh = (rot === 0 ? 0.5 : 1) * GRID_CELL;
+  const left = win.c0 * GRID_CELL;
+  const top = win.r0 * GRID_CELL;
+  const span = win.side * GRID_CELL;
+  return {
+    x: Math.min(left + span - hw, Math.max(left + hw, x)),
+    y: Math.min(top + span - hh, Math.max(top + hh, y)),
+  };
+}
+
 interface View {
   scale: number;
   tx: number;
@@ -101,30 +151,6 @@ function clampView(view: View, w: number, h: number): View {
     tx: Math.min(0, Math.max(w * (1 - CANVAS * scale), view.tx)),
     ty: Math.min(0, Math.max(h * (1 - CANVAS * scale), view.ty)),
   };
-}
-
-// The view that frames exactly the tables: a square window around their
-// bounding box with FRAME_MARGIN empty cells on every side, centred. This
-// is what keeps the board feeling "always the perfect size" — it recomputes
-// whenever the tables change and the room quietly rescales to it.
-function framableView(tables: Table[], w: number, h: number): View {
-  if (tables.length === 0 || w === 0) return FIT_VIEW;
-  let minC = Infinity;
-  let minR = Infinity;
-  let maxC = -Infinity;
-  let maxR = -Infinity;
-  for (const t of tables) {
-    const p = tablePlacement(t.x, t.y, t.rot);
-    minC = Math.min(minC, p.leftCell);
-    minR = Math.min(minR, p.topCell);
-    maxC = Math.max(maxC, p.leftCell + p.wc);
-    maxR = Math.max(maxR, p.topCell + p.hc);
-  }
-  const side = Math.max(MIN_FRAME_CELLS, Math.max(maxC - minC, maxR - minR) + FRAME_MARGIN * 2);
-  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, 1 / (side * GRID_CELL * CANVAS)));
-  const cx = ((minC + maxC) / 2) * GRID_CELL; // cluster centre, board fraction
-  const cy = ((minR + maxR) / 2) * GRID_CELL;
-  return { scale, tx: w / 2 - cx * CANVAS * w * scale, ty: h / 2 - cy * CANVAS * h * scale };
 }
 
 function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
@@ -143,6 +169,7 @@ function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
 
 interface DragInfo {
   id: number;
+  rot: 0 | 90;
   startX: number;
   startY: number;
   origX: number;
@@ -174,23 +201,17 @@ export function Room({
   const gesture = useRef<Gesture | null>(null);
   const dragRef = useRef<DragInfo | null>(null);
   const [live, setLive] = useState<{ id: number; x: number; y: number } | null>(null);
-  // In auto mode the view tracks the tables (framed with a margin). Any
-  // manual pan/zoom drops out of it; the ⤢ button switches it back on.
+  // In auto mode the window tracks the tables. Any manual pan/zoom freezes
+  // it (and unlocks the camera); the ⤢ button snaps both back.
   const [auto, setAuto] = useState(true);
+  const [win, setWin] = useState<Win>(() => windowFor(tables));
+  const winRef = useRef(win);
+  winRef.current = win;
 
-  // Re-frame whenever the tables (or the room size) change, while auto. A
-  // layout effect so the first paint is already framed (no zoom-in on load).
-  useLayoutEffect(() => {
-    const el = outerRef.current;
-    if (!el || !auto) return;
-    const refit = () => {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0) setView(framableView(tables, r.width, r.height));
-    };
-    refit();
-    const ro = new ResizeObserver(refit);
-    ro.observe(el);
-    return () => ro.disconnect();
+  useEffect(() => {
+    if (!auto) return;
+    const next = windowFor(tables);
+    setWin((w) => (sameWin(w, next) ? w : next));
   }, [tables, auto]);
 
   function cancelDrag() {
@@ -306,16 +327,20 @@ export function Room({
 
   function finalPos(d: DragInfo, e: ReactPointerEvent) {
     const rect = canvasRef.current!.getBoundingClientRect(); // scaled size
-    return {
-      x: clampPos(d.origX + (e.clientX - d.startX) / rect.width),
-      y: clampPos(d.origY + (e.clientY - d.startY) / rect.height),
-    };
+    const w = winRef.current;
+    const span = w.side * GRID_CELL; // board fraction shown across the canvas
+    return clampToWin(
+      d.origX + ((e.clientX - d.startX) / rect.width) * span,
+      d.origY + ((e.clientY - d.startY) / rect.height) * span,
+      d.rot,
+      w,
+    );
   }
 
   function onPointerDown(e: ReactPointerEvent, t: Table) {
     // no stopPropagation: the room must see this pointer so a second
     // finger can turn the interaction into a pinch
-    dragRef.current = { id: t.id, startX: e.clientX, startY: e.clientY, origX: t.x, origY: t.y, moved: false };
+    dragRef.current = { id: t.id, rot: t.rot, startX: e.clientX, startY: e.clientY, origX: t.x, origY: t.y, moved: false };
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
@@ -364,6 +389,18 @@ export function Room({
     zoomAt(rect.width / 2, rect.height / 2, viewRef.current.scale * factor);
   }
 
+  // The graph paper is its own layer, one cell larger than the window on
+  // every side and anchored to whole board cells, so the lines stay glued
+  // to the snap grid even when the window is centred on a half cell.
+  const gridCells = win.side + 2;
+  const gridStyle = {
+    left: `${((Math.floor(win.c0) - 1 - win.c0) / win.side) * 100}%`,
+    top: `${((Math.floor(win.r0) - 1 - win.r0) / win.side) * 100}%`,
+    width: `${(gridCells / win.side) * 100}%`,
+    height: `${(gridCells / win.side) * 100}%`,
+    backgroundSize: `${100 / gridCells}% ${100 / gridCells}%`,
+  };
+
   return (
     <div
       className="room"
@@ -374,10 +411,11 @@ export function Room({
       onPointerCancel={bgPointerUp}
     >
       <div
-        className={`room-canvas${auto ? ' animate' : ''}`}
+        className="room-canvas"
         ref={canvasRef}
         style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}
       >
+        <div className="room-grid" style={gridStyle} />
         {live &&
           (() => {
             // dashed ghost previews the cell the dragged table will land in;
@@ -391,9 +429,9 @@ export function Room({
               <div
                 className={`rtable-ghost${spot ? '' : ' invalid'}`}
                 style={{
-                  left: `${s.x * 100}%`,
-                  top: `${s.y * 100}%`,
-                  width: horizontal ? `${2 * CELL_PCT}%` : `${CELL_PCT}%`,
+                  left: `${winLeft(win, s.x)}%`,
+                  top: `${winTop(win, s.y)}%`,
+                  width: horizontal ? `${200 / win.side}%` : `${100 / win.side}%`,
                   aspectRatio: horizontal ? '2 / 1' : '1 / 2',
                 }}
               />
@@ -414,9 +452,9 @@ export function Room({
                 (live?.id === t.id ? ' dragging' : '')
               }
               style={{
-                left: `${pos.x * 100}%`,
-                top: `${pos.y * 100}%`,
-                width: horizontal ? `${2 * CELL_PCT}%` : `${CELL_PCT}%`,
+                left: `${winLeft(win, pos.x)}%`,
+                top: `${winTop(win, pos.y)}%`,
+                width: horizontal ? `${200 / win.side}%` : `${100 / win.side}%`,
                 aspectRatio: horizontal ? '2 / 1' : '1 / 2',
               }}
               onPointerDown={(e) => onPointerDown(e, t)}
@@ -448,7 +486,14 @@ export function Room({
         <button className="zoom-btn" onClick={() => buttonZoom(1 / 1.3)} aria-label="Zoom out">
           −
         </button>
-        <button className="zoom-btn" onClick={() => setAuto(true)} aria-label="Fit the tables">
+        <button
+          className="zoom-btn"
+          onClick={() => {
+            setAuto(true);
+            setView(FIT_VIEW);
+          }}
+          aria-label="Fit the tables"
+        >
           ⤢
         </button>
       </div>
