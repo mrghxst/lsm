@@ -171,6 +171,60 @@ function clampView(view: View, w: number, h: number): View {
   };
 }
 
+// A seat label picks the fullest form that fits its compartment on one
+// line, without ever changing the font: full name, else the first word
+// (for multi-word names), else the first three letters, else two. All
+// forms share the one fixed 15px weight so seats read uniformly. Because
+// both the box and the font live inside the scaled canvas, this fit is
+// the same at any zoom, so it only needs recomputing when the box's own
+// (unscaled) size changes — capacity, orientation, or the framing.
+const labelCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+const labelCtx = labelCanvas ? labelCanvas.getContext('2d') : null;
+let labelFont = '';
+
+function fontOf(el: HTMLElement) {
+  if (!labelFont) {
+    const cs = getComputedStyle(el);
+    labelFont = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  }
+  return labelFont;
+}
+
+function fitLabel(name: string, maxW: number): string {
+  const clean = name.trim().replace(/\s+/g, ' ');
+  const first = clean.split(' ')[0] || clean;
+  const forms = [clean];
+  if (first && first !== clean) forms.push(first); // drop surname first
+  forms.push(first.slice(0, 3), first.slice(0, 2));
+  const seen = new Set<string>();
+  const uniq = forms.filter((f) => f.length > 0 && !seen.has(f) && (seen.add(f), true));
+  const shortest = uniq[uniq.length - 1] ?? clean.slice(0, 2);
+  if (!labelCtx) return shortest;
+  for (const f of uniq) {
+    if (labelCtx.measureText(f.toUpperCase()).width <= maxW) return f;
+  }
+  return shortest; // two letters, shown even if the seat is very tight
+}
+
+function SeatLabel({ name }: { name: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [text, setText] = useState(name);
+  useLayoutEffect(() => {
+    const span = ref.current;
+    const box = span?.parentElement;
+    if (!span || !box) return;
+    const recompute = () => {
+      if (labelCtx) labelCtx.font = fontOf(span);
+      setText(fitLabel(name, Math.max(0, box.clientWidth - 8)));
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [name]);
+  return <span ref={ref}>{text}</span>;
+}
+
 function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
   if (!claim) return <div className="segment empty" />;
   const color = claimColor(claim);
@@ -180,7 +234,7 @@ function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
       : { background: `${color}38`, boxShadow: `inset 0 0 0 2px ${color}` };
   return (
     <div className={`segment${mine ? ' mine-seat' : ''}`} style={style}>
-      <span>{(claim.guestName ?? claim.username).slice(0, 2)}</span>
+      <SeatLabel name={claim.guestName ?? claim.username} />
     </div>
   );
 }

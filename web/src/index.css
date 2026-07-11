@@ -607,6 +607,12 @@ body {
   text-transform: uppercase;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  /* the label is fitted to width in JS; keep it to a single line and clip
+     as a guard rather than ever wrapping or ellipsising */
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 2px;
 }
 
 /* the requested dissection lines between seats */
