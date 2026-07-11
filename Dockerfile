@@ -1,5 +1,5 @@
 # Stage 1: build the React frontend
-FROM node:22-alpine AS webbuild
+FROM node:24-alpine AS webbuild
 WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 # Stage 2: production server
-FROM node:22-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
