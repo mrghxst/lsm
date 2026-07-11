@@ -646,8 +646,8 @@ export function Room({
         })}
       </div>
       {/* the fixed sides of the real room, so the layout reads like the space */}
-      <span className="room-wall room-wall-left">Fenster</span>
-      <span className="room-wall room-wall-right">Gang</span>
+      <span className="room-wall room-wall-left">Window</span>
+      <span className="room-wall room-wall-right">Corridor</span>
       <div className="zoom-controls">
         <button className="zoom-btn" onClick={() => buttonZoom(1.3)} aria-label="Zoom in">
           ＋
