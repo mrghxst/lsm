@@ -391,10 +391,55 @@ body {
   width: 200%;
   height: 200%;
   transform-origin: 0 0;
-  /* graph paper aligned to the half-table snap grid (8x8 cells) */
-  background-image: linear-gradient(rgba(44, 54, 68, 0.7) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(44, 54, 68, 0.7) 1px, transparent 1px);
-  background-size: 12.5% 12.5%;
+}
+
+/* Graph paper aligned to the half-table snap grid. Image and sizing come
+   inline (line spacing thins out on big boards) and glide along with the
+   tables when the window reframes after an add/remove. */
+.room-grid {
+  position: absolute;
+  pointer-events: none;
+  transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1), height 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    background-size 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A programmatic reframe (add/remove, fit button) glides the camera too. */
+.room-canvas.animate {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Canvas growth that must be invisible: no gliding while it happens. */
+.room-canvas.still .rtable,
+.room-canvas.still .room-grid {
+  transition: none;
+}
+
+/* The fixed sides of the real room, labelled like axes. */
+.room-wall {
+  position: absolute;
+  top: 50%;
+  z-index: 6;
+  writing-mode: vertical-rl;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.room-wall-left {
+  left: 8px;
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.room-wall-right {
+  right: 8px;
+  transform: translateY(-50%);
 }
 
 .rtable-ghost {
@@ -448,6 +493,14 @@ body {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+  /* glide when the window reframes (add/remove/move); off mid-drag, see below */
+  transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rtable.dragging,
+.rtable.dragging * {
+  transition: none;
 }
 
 .rtable.mine {
@@ -457,6 +510,12 @@ body {
 .rtable.released {
   opacity: 0.45;
   border-style: dashed;
+}
+
+.rtable.stolen {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--red);
 }
 
 .rtable.dragging {
@@ -493,6 +552,31 @@ body {
   pointer-events: none;
 }
 
+/* Subtle red candy-stripe fill marking a table grabbed by outsiders. */
+.rtable-stolen {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+  padding: 2px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(239, 85, 99, 0.22) 0,
+    rgba(239, 85, 99, 0.22) 7px,
+    transparent 7px,
+    transparent 14px
+  );
+}
+
 .segments {
   position: absolute;
   inset: 3px;
@@ -523,6 +607,12 @@ body {
   text-transform: uppercase;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  /* the label is fitted to width in JS; keep it to a single line and clip
+     as a guard rather than ever wrapping or ellipsising */
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 2px;
 }
 
 /* the requested dissection lines between seats */
@@ -966,8 +1056,17 @@ body {
   }
 
   .space-side .people,
-  .space-side .end-space {
+  .space-side .vote-bar,
+  .space-side .timer-card {
     margin-top: 0;
+  }
+
+  /* Sidebar reads top-to-bottom People · Timer · Votes, with the destructive
+     End button pushed to the very bottom (level with the room) by the auto
+     margin. DOM order already matches, so the phone's single-column flow
+     keeps End last too. */
+  .space-side .end-space {
+    margin-top: auto;
   }
 
   .room-wrap {
@@ -1084,4 +1183,502 @@ body {
   font-size: 14.5px;
   max-width: min(420px, calc(100vw - 32px));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- votes ---------- */
+
+/* ---- shared focus timer ---- */
+
+.timer-card {
+  margin-top: 12px;
+}
+
+.timer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timer-head .section-title {
+  flex: 1;
+}
+
+.timer-hint {
+  margin: 0;
+}
+
+.timer-presets {
+  display: flex;
+  gap: 8px;
+}
+
+.timer-preset {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.timer-preset small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.timer-preset.active small {
+  color: inherit;
+}
+
+/* The ring drains clockwise as the round runs down; the number in the
+   middle is the source of truth, the ring is the glanceable version. */
+.timer-ring-wrap {
+  position: relative;
+  width: 172px;
+  margin: 2px auto;
+}
+
+.timer-ring {
+  display: block;
+  width: 100%;
+}
+
+.timer-ring-track {
+  fill: none;
+  stroke: var(--card-2);
+  stroke-width: 10;
+}
+
+.timer-ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s linear, stroke 0.3s ease;
+}
+
+/* While the join window is open the ring breathes to invite a tap. */
+.timer-ring-fill.joinable {
+  stroke: var(--green);
+  animation: timer-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes timer-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.timer-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.timer-time {
+  font-size: 32px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.timer-emoji {
+  font-size: 36px;
+}
+
+.timer-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.timer-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.timer-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.timer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.timer-in {
+  font-weight: 700;
+  color: var(--green);
+}
+
+/* ---- room chat (support-widget style, pinned bottom-right) ---- */
+
+.chat-fab {
+  position: fixed;
+  right: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--text);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 15;
+}
+
+.chat-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* ring in the page background so the dot reads clearly off the dark button */
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px rgba(239, 85, 99, 0.6), 0 2px 8px rgba(239, 85, 99, 0.5);
+  animation: chat-badge-pop 1.8s ease-in-out infinite;
+}
+
+@keyframes chat-badge-pop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+.chat-panel {
+  position: fixed;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  width: min(340px, calc(100vw - 24px));
+  height: min(460px, 70dvh);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  z-index: 15;
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-title {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.chat-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+}
+
+.chat-msgs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-empty {
+  margin: auto;
+  text-align: center;
+}
+
+.chat-msg {
+  max-width: 85%;
+  align-self: flex-start;
+  padding: 7px 11px;
+  border-radius: 12px 12px 12px 4px;
+  background: var(--card-2);
+  font-size: 14px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-msg.mine {
+  align-self: flex-end;
+  border-radius: 12px 12px 4px 12px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.chat-msg-name {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-bottom: 1px;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-input-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-send {
+  flex-shrink: 0;
+}
+
+.vote-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.vote-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.vote-chip strong {
+  color: var(--text);
+}
+
+.vote-chip-new {
+  font-weight: 600;
+}
+
+.vote-sheet {
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.vote-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vote-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vote-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vote-opt-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.vote-opt-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* WhatsApp-style result bar: filled share of all ballots cast in this vote */
+.vote-track {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.vote-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.vote-opt.mine .vote-opt-main {
+  border-color: var(--accent);
+}
+
+.vote-total {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.vote-create-btn {
+  flex: 1;
+}
+
+.vote-label {
+  flex: 1;
+}
+
+.voter-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.vote-count {
+  min-width: 18px;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.vote-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.vote-add-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu-detail {
+  margin: 2px 0 6px;
+  padding: 10px 12px;
+  list-style: none;
+  border-radius: 12px;
+  background: var(--card-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.menu-detail li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.menu-name-btn {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-name-btn:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.menu-cam {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+/* Non-interactive stand-in for the menu button when a mensa is closed. */
+.menu-closed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  opacity: 0.55;
+}
+
+.menu-photo {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+
+.menu-line {
+  flex-shrink: 0;
+  min-width: 64px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.menu-meal {
+  flex: 1;
+}
+
+.menu-desc {
+  color: var(--muted);
+}
+
+.menu-price {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }

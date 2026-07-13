@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS tables (
   space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
   released INTEGER NOT NULL DEFAULT 0,
+  stolen INTEGER NOT NULL DEFAULT 0,
   capacity INTEGER NOT NULL DEFAULT 1,
   x REAL NOT NULL DEFAULT 0.5,
   y REAL NOT NULL DEFAULT 0.5,
@@ -87,6 +88,96 @@ CREATE TABLE IF NOT EXISTS invite_codes (
   used_at INTEGER
 );
 
+-- Everyone who held a seat at some point during the current session, kept
+-- so the end-of-session "sign up for tomorrow" reminder also reaches people
+-- who already left. Cleared when the next session opens.
+CREATE TABLE IF NOT EXISTS session_participants (
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (space_id, user_id)
+);
+
+-- "I'll be back tomorrow" pledges — no arrival time, just intent, so the
+-- first person there the next morning knows what table size to reserve.
+-- for_date is the Zurich calendar day the pledge is for; rows are consumed
+-- when the next session opens and ignored once for_date is in the past.
+CREATE TABLE IF NOT EXISTS tomorrow_signups (
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  for_date TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (space_id, user_id)
+);
+
+-- Session-scoped polls (e.g. where to eat lunch). Wiped together with the
+-- tables when a session ends, so every study day starts fresh.
+CREATE TABLE IF NOT EXISTS votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'custom' CHECK (kind IN ('lunch', 'custom')),
+  title TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  reminder_sent INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS vote_options (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vote_id INTEGER NOT NULL REFERENCES votes(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  facility_id INTEGER,   -- ETH gastronomy facility, for the live menu view
+  added_by INTEGER REFERENCES users(id) ON DELETE SET NULL  -- NULL = built-in option
+);
+
+-- One ballot per person per vote; changing your mind replaces it.
+CREATE TABLE IF NOT EXISTS vote_ballots (
+  vote_id INTEGER NOT NULL REFERENCES votes(id) ON DELETE CASCADE,
+  option_id INTEGER NOT NULL REFERENCES vote_options(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (vote_id, user_id)
+);
+
+-- Shared focus timers ("let's do 60 minutes"): one per space at a time,
+-- joining is open for the first tenth of the round. break_sent marks the
+-- end-of-round push as delivered. Wiped together with the session.
+CREATE TABLE IF NOT EXISTS timers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  started_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  duration_s INTEGER NOT NULL,
+  started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  break_sent INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS timer_participants (
+  timer_id INTEGER NOT NULL REFERENCES timers(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (timer_id, user_id)
+);
+
+-- Session-scoped room chat: only people with a seat today can write, and
+-- the log is wiped with the session. Mutes are a lasting per-person
+-- preference (no pushes, no unread badge) and survive sessions.
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS chat_mutes (
+  space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (space_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_space ON chat_messages(space_id);
+CREATE INDEX IF NOT EXISTS idx_timers_space ON timers(space_id);
+CREATE INDEX IF NOT EXISTS idx_votes_space ON votes(space_id);
+CREATE INDEX IF NOT EXISTS idx_vote_options_vote ON vote_options(vote_id);
 CREATE INDEX IF NOT EXISTS idx_tables_space ON tables(space_id);
 CREATE INDEX IF NOT EXISTS idx_claims_table ON claims(table_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_expiry ON auth_tokens(expires_at);
@@ -94,12 +185,13 @@ CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_members_user ON space_members(user_id);
 `);
 
-// The room is an 8x8 board of cells, each half a table long: a table
-// covers 2x1 cells (1x2 rotated), so tables always butt up flush
-// against each other. Coordinates are fractions (0..1) of the room,
-// measured at the table's center.
-export const GRID_CELL = 0.125;
-const CELLS = 8;
+// The room is a 32x32 board of cells, each half a table long: a table
+// covers 2x1 cells (1x2 rotated), so tables always butt up flush against
+// each other. Coordinates are fractions (0..1) of the board, measured at
+// the table's center. The board is deliberately roomy — the client frames
+// the occupied part with a margin, so tables never sit near the edges.
+export const GRID_CELL = 1 / 32;
+export const CELLS = 32;
 
 export function snapPosition(x, y, rot) {
   const wc = rot === 0 ? 2 : 1;
@@ -122,7 +214,7 @@ export function tablePlacement(x, y, rot) {
   };
 }
 
-function placementsOverlap(a, b) {
+export function placementsOverlap(a, b) {
   return a.leftCell < b.leftCell + b.wc && b.leftCell < a.leftCell + a.wc &&
     a.topCell < b.topCell + b.hc && b.topCell < a.topCell + a.hc;
 }
@@ -171,18 +263,28 @@ export function findAnyFreeSpot(rot, others) {
   return best ? { x: best.x, y: best.y } : null;
 }
 
-// Default arrangement for n tables: grid-aligned columns with a
-// one-cell gap between rows while space allows.
+// Default arrangement: a block two rows tall that grows rightward, as if
+// the left side were a wall. Tables pair up into stacked columns from the
+// wall out; an odd count means the newest table stands rotated (vertical)
+// at the right end, waiting to be flipped into a pair when the next table
+// arrives. This mirrors the incremental add flow, so a spawn of n looks
+// exactly like n tables added one by one.
 export function gridPositions(n) {
-  const cols = n <= 8 ? 2 : 3;
-  const leftCells = cols === 2 ? [1, 5] : [0, 3, 6];
-  const rows = Math.ceil(n / cols);
-  const rowStep = rows <= 4 ? 2 : 1;
-  const topStart = rows <= 4 ? 1 : 0;
-  return Array.from({ length: n }, (_, i) => ({
-    x: (leftCells[i % cols] + 1) * GRID_CELL,
-    y: (topStart + Math.floor(i / cols) * rowStep + 0.5) * GRID_CELL,
-  }));
+  if (n <= 0) return [];
+  const odd = n % 2;
+  const width = odd + Math.floor(n / 2) * 2;
+  const startCol = Math.round((CELLS - width) / 2);
+  const rowTop = CELLS / 2 - 1; // block is two cells tall, centred
+  const pos = [];
+  for (let c = 0; c < Math.floor(n / 2); c++) {
+    const cx = (startCol + c * 2 + 1) * GRID_CELL;
+    pos.push({ x: cx, y: (rowTop + 0.5) * GRID_CELL, rot: 0 });
+    pos.push({ x: cx, y: (rowTop + 1.5) * GRID_CELL, rot: 0 });
+  }
+  if (odd) {
+    pos.push({ x: (startCol + width - 0.5) * GRID_CELL, y: (rowTop + 1) * GRID_CELL, rot: 90 });
+  }
+  return pos;
 }
 
 // ---------- migrations for databases created by earlier versions ----------
@@ -278,6 +380,13 @@ if (!hasColumn('claims', 'seat')) {
     const claims = db.prepare('SELECT id FROM claims WHERE table_id = ? ORDER BY created_at, id').all(t.table_id);
     claims.forEach((c, i) => setSeat.run(i, c.id));
   }
+}
+
+// A given-back table can be flagged as taken by someone outside the group
+// ("stolen"): stolen always implies released, so every released = 0 seat
+// filter keeps excluding it without change.
+if (!hasColumn('tables', 'stolen')) {
+  db.exec('ALTER TABLE tables ADD COLUMN stolen INTEGER NOT NULL DEFAULT 0');
 }
 
 // When someone actually sat down, for the time-at-table display.

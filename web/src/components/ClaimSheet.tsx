@@ -11,6 +11,7 @@ interface Actions {
   updateClaim(claimId: number, body: { eta?: string; status?: string }, close?: boolean): void;
   removeClaim(claimId: number, reason?: string): void;
   setReleased(tableId: number, released: boolean): void;
+  setStolen(tableId: number, stolen: boolean): void;
   setCapacity(tableId: number, capacity: number): void;
   rotate(tableId: number): void;
   removeTable(tableId: number): void;
@@ -106,6 +107,8 @@ export function ClaimSheet({
         )}
       </>
     );
+  } else if (table.stolen) {
+    body = <p className="sheet-status">This table was taken by someone outside the group.</p>;
   } else if (table.released) {
     body = <p className="sheet-status">This table was given back.</p>;
   } else if (isFull) {
@@ -164,7 +167,7 @@ export function ClaimSheet({
         <div className="sheet-head">
           <h2>Table {table.label.replace(/^T/, '')}</h2>
           <span className="table-count">
-            {table.released ? 'given back' : `${table.claims.length}/${table.capacity} seats`}
+            {table.stolen ? 'taken by others' : table.released ? 'given back' : `${table.claims.length}/${table.capacity} seats`}
           </span>
         </div>
         <div className="stack">
@@ -244,6 +247,11 @@ export function ClaimSheet({
                     Give back
                   </button>
                 )
+              )}
+              {table.claims.length === 0 && !table.stolen && (
+                <button className="btn btn-secondary" onClick={() => actions.setStolen(table.id, true)}>
+                  🚩 Taken by others
+                </button>
               )}
             </div>
             {table.claims.length === 0 && (

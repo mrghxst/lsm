@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Claim, Table } from '../types';
 import { claimColor } from '../util';
@@ -10,15 +10,18 @@ const MIN_SCALE = 1 / CANVAS;
 const MAX_SCALE = 3;
 const FIT_VIEW = { scale: MIN_SCALE, tx: 0, ty: 0 };
 
-function clampPos(v: number) {
-  return Math.min(0.94, Math.max(0.06, v));
-}
-
-// The canvas is an 8x8 board of half-table cells (keep in sync with
+// Tables snap to a 32x32 board of half-table cells (keep in sync with
 // server/db.js): a table covers 2x1 cells, rotated 1x2, so snapped
 // tables sit flush against each other.
-const GRID_CELL = 0.125;
-const CELLS = 8;
+const GRID_CELL = 1 / 32;
+const CELLS = 32;
+
+// The canvas shows a square *window* of that board: the smallest square
+// keeping at least FRAME_CELLS empty grid squares between the outermost
+// tables and every edge. A lone table or two-table column yields the
+// classic 8-squares-across room; wider blocks get a slightly bigger one.
+const FRAME_CELLS = 3;
+const HOME_SIDE = 8;
 
 interface Placement {
   leftCell: number;
@@ -78,6 +81,79 @@ function otherPlacements(tables: Table[], excludeId: number): Placement[] {
   return tables.filter((t) => t.id !== excludeId).map((t) => tablePlacement(t.x, t.y, t.rot));
 }
 
+interface Win {
+  c0: number; // leftmost board cell shown (may be a half cell for centring)
+  r0: number;
+  side: number; // window size in cells; the canvas shows side x side squares
+}
+
+const HOME_WIN: Win = { c0: (CELLS - HOME_SIDE) / 2, r0: (CELLS - HOME_SIDE) / 2, side: HOME_SIDE };
+
+// The smallest square window with FRAME_CELLS of air on every side of the
+// block, centred on it. Only one axis can need fractional centring (the
+// other has exactly FRAME_CELLS on both sides), so the split stays
+// symmetric down to the half cell.
+function windowFor(tables: Table[]): Win {
+  if (tables.length === 0) return HOME_WIN;
+  let minC = Infinity;
+  let minR = Infinity;
+  let maxC = -Infinity;
+  let maxR = -Infinity;
+  for (const t of tables) {
+    const p = tablePlacement(t.x, t.y, t.rot);
+    minC = Math.min(minC, p.leftCell);
+    minR = Math.min(minR, p.topCell);
+    maxC = Math.max(maxC, p.leftCell + p.wc);
+    maxR = Math.max(maxR, p.topCell + p.hc);
+  }
+  const side = Math.min(CELLS, Math.max(maxC - minC, maxR - minR) + FRAME_CELLS * 2);
+  const c0 = Math.max(0, Math.min(CELLS - side, minC - (side - (maxC - minC)) / 2));
+  const r0 = Math.max(0, Math.min(CELLS - side, minR - (side - (maxR - minR)) / 2));
+  return { c0, r0, side };
+}
+
+const sameWin = (a: Win, b: Win) => a.c0 === b.c0 && a.r0 === b.r0 && a.side === b.side;
+
+// The smallest square window containing both — used to grow the canvas
+// without ever pulling it out from under someone's camera.
+function unionWin(a: Win, b: Win): Win {
+  const c0 = Math.min(a.c0, b.c0);
+  const r0 = Math.min(a.r0, b.r0);
+  const side = Math.min(
+    CELLS,
+    Math.max(Math.max(a.c0 + a.side, b.c0 + b.side) - c0, Math.max(a.r0 + a.side, b.r0 + b.side) - r0),
+  );
+  return {
+    c0: Math.max(0, Math.min(CELLS - side, c0)),
+    r0: Math.max(0, Math.min(CELLS - side, r0)),
+    side,
+  };
+}
+
+const idsOf = (ts: Table[]) => ts.map((t) => t.id).sort((a, b) => a - b).join(',');
+
+// board fraction -> % of the canvas (which shows exactly the window)
+function winLeft(win: Win, bx: number) {
+  return ((bx * CELLS - win.c0) / win.side) * 100;
+}
+
+function winTop(win: Win, by: number) {
+  return ((by * CELLS - win.r0) / win.side) * 100;
+}
+
+// Keep a dragged table fully inside the visible window.
+function clampToWin(x: number, y: number, rot: 0 | 90, win: Win) {
+  const hw = (rot === 0 ? 1 : 0.5) * GRID_CELL;
+  const hh = (rot === 0 ? 0.5 : 1) * GRID_CELL;
+  const left = win.c0 * GRID_CELL;
+  const top = win.r0 * GRID_CELL;
+  const span = win.side * GRID_CELL;
+  return {
+    x: Math.min(left + span - hw, Math.max(left + hw, x)),
+    y: Math.min(top + span - hh, Math.max(top + hh, y)),
+  };
+}
+
 interface View {
   scale: number;
   tx: number;
@@ -95,6 +171,60 @@ function clampView(view: View, w: number, h: number): View {
   };
 }
 
+// A seat label picks the fullest form that fits its compartment on one
+// line, without ever changing the font: full name, else the first word
+// (for multi-word names), else the first three letters, else two. All
+// forms share the one fixed 15px weight so seats read uniformly. Because
+// both the box and the font live inside the scaled canvas, this fit is
+// the same at any zoom, so it only needs recomputing when the box's own
+// (unscaled) size changes — capacity, orientation, or the framing.
+const labelCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+const labelCtx = labelCanvas ? labelCanvas.getContext('2d') : null;
+let labelFont = '';
+
+function fontOf(el: HTMLElement) {
+  if (!labelFont) {
+    const cs = getComputedStyle(el);
+    labelFont = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  }
+  return labelFont;
+}
+
+function fitLabel(name: string, maxW: number): string {
+  const clean = name.trim().replace(/\s+/g, ' ');
+  const first = clean.split(' ')[0] || clean;
+  const forms = [clean];
+  if (first && first !== clean) forms.push(first); // drop surname first
+  forms.push(first.slice(0, 3), first.slice(0, 2));
+  const seen = new Set<string>();
+  const uniq = forms.filter((f) => f.length > 0 && !seen.has(f) && (seen.add(f), true));
+  const shortest = uniq[uniq.length - 1] ?? clean.slice(0, 2);
+  if (!labelCtx) return shortest;
+  for (const f of uniq) {
+    if (labelCtx.measureText(f.toUpperCase()).width <= maxW) return f;
+  }
+  return shortest; // two letters, shown even if the seat is very tight
+}
+
+function SeatLabel({ name }: { name: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [text, setText] = useState(name);
+  useLayoutEffect(() => {
+    const span = ref.current;
+    const box = span?.parentElement;
+    if (!span || !box) return;
+    const recompute = () => {
+      if (labelCtx) labelCtx.font = fontOf(span);
+      setText(fitLabel(name, Math.max(0, box.clientWidth - 8)));
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [name]);
+  return <span ref={ref}>{text}</span>;
+}
+
 function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
   if (!claim) return <div className="segment empty" />;
   const color = claimColor(claim);
@@ -104,13 +234,14 @@ function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
       : { background: `${color}38`, boxShadow: `inset 0 0 0 2px ${color}` };
   return (
     <div className={`segment${mine ? ' mine-seat' : ''}`} style={style}>
-      <span>{(claim.guestName ?? claim.username).slice(0, 2)}</span>
+      <SeatLabel name={claim.guestName ?? claim.username} />
     </div>
   );
 }
 
 interface DragInfo {
   id: number;
+  rot: 0 | 90;
   startX: number;
   startY: number;
   origX: number;
@@ -142,6 +273,105 @@ export function Room({
   const gesture = useRef<Gesture | null>(null);
   const dragRef = useRef<DragInfo | null>(null);
   const [live, setLive] = useState<{ id: number; x: number; y: number } | null>(null);
+  // In auto mode the window tracks the tables. Any manual pan/zoom freezes
+  // it (and unlocks the camera); the ⤢ button snaps both back.
+  const [auto, setAuto] = useState(true);
+  const autoRef = useRef(auto);
+  autoRef.current = auto;
+  const [win, setWin] = useState<Win>(() => windowFor(tables));
+  const winRef = useRef(win);
+  winRef.current = win;
+  const prevIds = useRef(idsOf(tables));
+  // glide: transform transitions on for a programmatic reframe.
+  // frozen: all transitions off for one commit, for invisible canvas growth.
+  const [glide, setGlide] = useState(false);
+  const glideTimer = useRef<number>();
+  const [frozen, setFrozen] = useState(false);
+
+  function pulseGlide() {
+    setGlide(true);
+    window.clearTimeout(glideTimer.current);
+    glideTimer.current = window.setTimeout(() => setGlide(false), 500);
+  }
+
+  // Grow the canvas to cover `needed` without moving anything on screen:
+  // the camera is rescaled/shifted to exactly cancel the window change, so
+  // the new space simply exists off-screen until someone pans over to it.
+  function growTo(needed: Win) {
+    const cur = winRef.current;
+    const next = unionWin(cur, needed);
+    if (sameWin(cur, next)) return;
+    const rect = outerRef.current?.getBoundingClientRect();
+    if (rect && rect.width > 0) {
+      const v = viewRef.current;
+      setView({
+        scale: (v.scale * next.side) / cur.side,
+        tx: v.tx + CANVAS * rect.width * (v.scale / cur.side) * (next.c0 - cur.c0),
+        ty: v.ty + CANVAS * rect.height * (v.scale / cur.side) * (next.r0 - cur.r0),
+      });
+    }
+    setWin(next);
+    setFrozen(true);
+  }
+
+  // Re-tighten the canvas to `needed` (it may shrink), keeping the
+  // viewer's camera as close as possible: exact compensation first, then
+  // clamped back into the smaller room, with any visible correction
+  // gliding instead of jumping.
+  function shrinkTo(needed: Win) {
+    const cur = winRef.current;
+    if (sameWin(cur, needed)) return;
+    pulseGlide();
+    const rect = outerRef.current?.getBoundingClientRect();
+    if (rect && rect.width > 0) {
+      const v = viewRef.current;
+      setView(
+        clampView(
+          {
+            scale: (v.scale * needed.side) / cur.side,
+            tx: v.tx + CANVAS * rect.width * (v.scale / cur.side) * (needed.c0 - cur.c0),
+            ty: v.ty + CANVAS * rect.height * (v.scale / cur.side) * (needed.r0 - cur.r0),
+          },
+          rect.width,
+          rect.height,
+        ),
+      );
+    }
+    setWin(needed);
+  }
+
+  useEffect(() => {
+    const ids = idsOf(tables);
+    const changed = ids !== prevIds.current;
+    prevIds.current = ids;
+    const needed = windowFor(tables);
+    if (changed && autoRef.current) {
+      // adding/removing tables re-tightens to the smallest frame, gliding
+      pulseGlide();
+      setWin((w) => (sameWin(w, needed) ? w : needed));
+      setView(FIT_VIEW);
+    } else if (changed) {
+      // even a manually zoomed camera re-tightens on add/remove — the
+      // canvas must not stay big once the tables no longer need it
+      shrinkTo(needed);
+    } else {
+      // a plain move only ever grows the canvas — nobody's view shifts
+      // or pans because of it
+      growTo(needed);
+    }
+  }, [tables]);
+
+  useLayoutEffect(() => {
+    if (!frozen) return;
+    // Force a style recalc while transitions are off: without it a busy
+    // (or throttled) tab can skip straight from the old styles to the
+    // unfrozen state and replay the invisible growth as a visible glide.
+    void canvasRef.current?.offsetWidth;
+    const t = window.setTimeout(() => setFrozen(false), 100);
+    return () => window.clearTimeout(t);
+  }, [frozen]);
+
+  useEffect(() => () => window.clearTimeout(glideTimer.current), []);
 
   function cancelDrag() {
     dragRef.current = null;
@@ -163,6 +393,7 @@ export function Room({
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      setAuto(false);
       const rect = el.getBoundingClientRect();
       zoomAt(e.clientX - rect.left, e.clientY - rect.top, viewRef.current.scale * (e.deltaY < 0 ? 1.07 : 1 / 1.07));
     };
@@ -175,6 +406,7 @@ export function Room({
 
   function startPinch() {
     cancelDrag();
+    setAuto(false);
     const v = viewRef.current;
     const [a, b] = [...pointers.current.values()];
     gesture.current = {
@@ -206,6 +438,7 @@ export function Room({
     if (pointers.current.size === 2) {
       startPinch();
     } else if (pointers.current.size === 1 && !onTable) {
+      setAuto(false);
       const v = viewRef.current;
       gesture.current = { type: 'pan', startX: e.clientX, startY: e.clientY, origTx: v.tx, origTy: v.ty };
     } else if (pointers.current.size === 1) {
@@ -253,16 +486,20 @@ export function Room({
 
   function finalPos(d: DragInfo, e: ReactPointerEvent) {
     const rect = canvasRef.current!.getBoundingClientRect(); // scaled size
-    return {
-      x: clampPos(d.origX + (e.clientX - d.startX) / rect.width),
-      y: clampPos(d.origY + (e.clientY - d.startY) / rect.height),
-    };
+    const w = winRef.current;
+    const span = w.side * GRID_CELL; // board fraction shown across the canvas
+    return clampToWin(
+      d.origX + ((e.clientX - d.startX) / rect.width) * span,
+      d.origY + ((e.clientY - d.startY) / rect.height) * span,
+      d.rot,
+      w,
+    );
   }
 
   function onPointerDown(e: ReactPointerEvent, t: Table) {
     // no stopPropagation: the room must see this pointer so a second
     // finger can turn the interaction into a pinch
-    dragRef.current = { id: t.id, startX: e.clientX, startY: e.clientY, origX: t.x, origY: t.y, moved: false };
+    dragRef.current = { id: t.id, rot: t.rot, startX: e.clientX, startY: e.clientY, origX: t.x, origY: t.y, moved: false };
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
@@ -305,10 +542,30 @@ export function Room({
   }
 
   function buttonZoom(factor: number) {
+    setAuto(false);
     const rect = outerRef.current?.getBoundingClientRect();
     if (!rect) return;
     zoomAt(rect.width / 2, rect.height / 2, viewRef.current.scale * factor);
   }
+
+  // The graph paper is its own layer, anchored to whole board cells so the
+  // lines stay glued to the snap grid even when the window is centred on a
+  // half cell. Line thickness in canvas space is the inverse of the camera
+  // zoom, so every line renders at exactly one screen pixel at any zoom —
+  // uniform, never thinning out or disappearing.
+  const lineW = 1 / view.scale;
+  const lineCol = 'rgba(44, 54, 68, 0.45)';
+  const gc0 = Math.floor(win.c0) - 1;
+  const gr0 = Math.floor(win.r0) - 1;
+  const gridCells = win.side + 4;
+  const gridStyle = {
+    left: `${((gc0 - win.c0) / win.side) * 100}%`,
+    top: `${((gr0 - win.r0) / win.side) * 100}%`,
+    width: `${(gridCells / win.side) * 100}%`,
+    height: `${(gridCells / win.side) * 100}%`,
+    backgroundImage: `linear-gradient(${lineCol} ${lineW}px, transparent ${lineW}px), linear-gradient(90deg, ${lineCol} ${lineW}px, transparent ${lineW}px)`,
+    backgroundSize: `${(1 / gridCells) * 100}% ${(1 / gridCells) * 100}%`,
+  };
 
   return (
     <div
@@ -320,10 +577,11 @@ export function Room({
       onPointerCancel={bgPointerUp}
     >
       <div
-        className="room-canvas"
+        className={`room-canvas${glide ? ' animate' : ''}${frozen ? ' still' : ''}`}
         ref={canvasRef}
         style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}
       >
+        <div className="room-grid" style={gridStyle} />
         {live &&
           (() => {
             // dashed ghost previews the cell the dragged table will land in;
@@ -337,9 +595,9 @@ export function Room({
               <div
                 className={`rtable-ghost${spot ? '' : ' invalid'}`}
                 style={{
-                  left: `${s.x * 100}%`,
-                  top: `${s.y * 100}%`,
-                  width: horizontal ? '25%' : '12.5%',
+                  left: `${winLeft(win, s.x)}%`,
+                  top: `${winTop(win, s.y)}%`,
+                  width: horizontal ? `${200 / win.side}%` : `${100 / win.side}%`,
                   aspectRatio: horizontal ? '2 / 1' : '1 / 2',
                 }}
               />
@@ -356,12 +614,13 @@ export function Room({
                 'rtable' +
                 (mine ? ' mine' : '') +
                 (t.released ? ' released' : '') +
+                (t.stolen ? ' stolen' : '') +
                 (live?.id === t.id ? ' dragging' : '')
               }
               style={{
-                left: `${pos.x * 100}%`,
-                top: `${pos.y * 100}%`,
-                width: horizontal ? '25%' : '12.5%',
+                left: `${winLeft(win, pos.x)}%`,
+                top: `${winTop(win, pos.y)}%`,
+                width: horizontal ? `${200 / win.side}%` : `${100 / win.side}%`,
                 aspectRatio: horizontal ? '2 / 1' : '1 / 2',
               }}
               onPointerDown={(e) => onPointerDown(e, t)}
@@ -370,7 +629,9 @@ export function Room({
               onPointerCancel={onPointerCancel}
             >
               <span className="rtable-tag">{t.label}</span>
-              {t.released ? (
+              {t.stolen ? (
+                <span className="rtable-stolen">taken by others</span>
+              ) : t.released ? (
                 <span className="rtable-released">given back</span>
               ) : (
                 <div className={`segments ${horizontal ? 'srow' : 'scol'}`}>
@@ -384,6 +645,9 @@ export function Room({
           );
         })}
       </div>
+      {/* the fixed sides of the real room, so the layout reads like the space */}
+      <span className="room-wall room-wall-left">Window</span>
+      <span className="room-wall room-wall-right">Corridor</span>
       <div className="zoom-controls">
         <button className="zoom-btn" onClick={() => buttonZoom(1.3)} aria-label="Zoom in">
           ＋
@@ -391,7 +655,16 @@ export function Room({
         <button className="zoom-btn" onClick={() => buttonZoom(1 / 1.3)} aria-label="Zoom out">
           −
         </button>
-        <button className="zoom-btn" onClick={() => setView(FIT_VIEW)} aria-label="Show the whole room">
+        <button
+          className="zoom-btn"
+          onClick={() => {
+            setAuto(true);
+            pulseGlide();
+            setWin(windowFor(tables));
+            setView(FIT_VIEW);
+          }}
+          aria-label="Fit the tables"
+        >
           ⤢
         </button>
       </div>

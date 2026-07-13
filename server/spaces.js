@@ -1,13 +1,19 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
-import { db, gridPositions, tablePlacement, findFreeSpot, findAnyFreeSpot } from './db.js';
+import { db, gridPositions, tablePlacement, findFreeSpot, placementsOverlap, GRID_CELL, CELLS } from './db.js';
 import { requireAuth } from './auth.js';
 import { subscribe, broadcast } from './events.js';
 import { colorFor } from './colors.js';
 import { notifyUsers } from './push.js';
+import { votesRouter, votesForState, clearVotes } from './votes.js';
+import { timersRouter, timerForState, clearTimers } from './timers.js';
+import { chatRouter, chatForState, clearChat } from './chat.js';
 
 export const spacesRouter = Router();
 spacesRouter.use(requireAuth);
+spacesRouter.use('/:code/votes', votesRouter);
+spacesRouter.use('/:code/timers', timersRouter);
+spacesRouter.use('/:code/chat', chatRouter);
 
 // No 0/O/1/I/L to keep codes easy to read out loud.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -24,6 +30,30 @@ function getSpaceRow(code) {
 
 function addMember(spaceId, userId) {
   db.prepare('INSERT OR IGNORE INTO space_members (space_id, user_id) VALUES (?, ?)').run(spaceId, userId);
+}
+
+function addParticipant(spaceId, userId) {
+  db.prepare('INSERT OR IGNORE INTO session_participants (space_id, user_id) VALUES (?, ?)').run(spaceId, userId);
+}
+
+// Calendar day at ETH (Europe/Zurich) as YYYY-MM-DD; offsetDays = 1 is
+// tomorrow. en-CA is the locale whose date format is ISO.
+function zurichDate(offsetDays = 0) {
+  const d = new Date(Date.now() + offsetDays * 24 * 3600 * 1000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(d);
+}
+
+function tomorrowPledges(spaceId) {
+  return db.prepare(`
+    SELECT ts.user_id, u.username, u.color FROM tomorrow_signups ts
+    JOIN users u ON u.id = ts.user_id
+    WHERE ts.space_id = ? AND ts.for_date >= ?
+    ORDER BY ts.created_at, ts.user_id
+  `).all(spaceId, zurichDate()).map((r) => ({
+    userId: r.user_id,
+    username: r.username,
+    color: colorFor({ id: r.user_id, color: r.color }),
+  }));
 }
 
 // The session opener, the group owner and admins manage the session
@@ -71,6 +101,7 @@ export function getSpaceState(code) {
       id: t.id,
       label: t.label,
       released: !!t.released,
+      stolen: !!t.stolen,
       capacity: t.capacity,
       x: t.x,
       y: t.y,
@@ -89,6 +120,10 @@ export function getSpaceState(code) {
           arrivedAt: c.arrived_at,
         })),
     })),
+    tomorrow: tomorrowPledges(space.id),
+    votes: votesForState(space.id),
+    timer: timerForState(space.id),
+    chat: chatForState(space.id),
   };
 }
 
@@ -185,11 +220,57 @@ function notify(space, recipientIds, actorId, body) {
 }
 
 function createTables(spaceId, tableCount, capacity) {
-  const insertTable = db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, ?, ?, ?)');
+  const insertTable = db.prepare('INSERT INTO tables (space_id, label, capacity, x, y, rot) VALUES (?, ?, ?, ?, ?, ?)');
   const positions = gridPositions(tableCount);
   for (let i = 0; i < tableCount; i++) {
-    insertTable.run(spaceId, `T${i + 1}`, capacity, positions[i].x, positions[i].y);
+    insertTable.run(spaceId, `T${i + 1}`, capacity, positions[i].x, positions[i].y, positions[i].rot);
   }
+}
+
+const placementCenter = (p) => ({ x: (p.leftCell + p.wc / 2) * GRID_CELL, y: (p.topCell + p.hc / 2) * GRID_CELL });
+
+// Where the next table goes, without moving anybody who is already placed
+// (people are sitting there — the block only ever grows to the right, as if
+// the left side were a wall). If exactly one table stands rotated (the odd
+// one out), it flips in place into a horizontal and the newcomer completes
+// the stacked pair below it; otherwise the newcomer stands rotated at the
+// right edge of the block. Returns what to do, or null if the room is full.
+function nextTableSpot(tables) {
+  if (tables.length === 0) {
+    const [p] = gridPositions(1);
+    return { flip: null, ...p };
+  }
+  const placed = tables.map((t) => ({ t, p: tablePlacement(t.x, t.y, t.rot) }));
+  const verticals = placed.filter(({ t }) => t.rot === 90);
+  if (verticals.length === 1) {
+    const v = verticals[0];
+    const flipped = { leftCell: v.p.leftCell, topCell: v.p.topCell, wc: 2, hc: 1 };
+    const below = { leftCell: v.p.leftCell, topCell: v.p.topCell + 1, wc: 2, hc: 1 };
+    const others = placed.filter(({ t }) => t.id !== v.t.id).map(({ p }) => p);
+    const fits =
+      flipped.leftCell + 2 <= CELLS &&
+      below.topCell + 1 <= CELLS &&
+      !others.some((o) => placementsOverlap(flipped, o) || placementsOverlap(below, o));
+    if (fits) {
+      return {
+        flip: { id: v.t.id, ...placementCenter(flipped) },
+        ...placementCenter(below),
+        rot: 0,
+      };
+    }
+    // no room to flip (someone rearranged things) — fall through and append
+  }
+  // a fresh rotated table at the right edge, aligned with the top of the block
+  const all = placed.map(({ p }) => p);
+  const cand = {
+    leftCell: Math.max(...all.map((p) => p.leftCell + p.wc)),
+    topCell: Math.min(CELLS - 2, Math.min(...all.map((p) => p.topCell))),
+    wc: 1,
+    hc: 2,
+  };
+  while (cand.leftCell + 1 <= CELLS && all.some((o) => placementsOverlap(cand, o))) cand.leftCell += 1;
+  if (cand.leftCell + 1 > CELLS) return null;
+  return { flip: null, ...placementCenter(cand), rot: 90 };
 }
 
 function validateSessionParams(req, res) {
@@ -220,6 +301,7 @@ spacesRouter.post('/', (req, res) => {
       .prepare("INSERT INTO spaces (code, name, owner_id, status, opened_by, opened_at) VALUES (?, ?, ?, 'open', ?, unixepoch())")
       .run(code, name, req.user.id, req.user.id);
     addMember(info.lastInsertRowid, req.user.id);
+    addParticipant(info.lastInsertRowid, req.user.id);
     createTables(info.lastInsertRowid, params.tableCount, params.defaultCapacity);
     return code;
   });
@@ -262,29 +344,89 @@ spacesRouter.post('/:code/sessions', (req, res) => {
 
   db.transaction(() => {
     db.prepare('DELETE FROM tables WHERE space_id = ?').run(space.id);
+    // Yesterday's pledges are answered by this session starting; a fresh
+    // participant list starts collecting for tonight's reminder.
+    db.prepare('DELETE FROM tomorrow_signups WHERE space_id = ?').run(space.id);
+    db.prepare('DELETE FROM session_participants WHERE space_id = ?').run(space.id);
     db.prepare("UPDATE spaces SET status = 'open', opened_by = ?, opened_at = unixepoch() WHERE id = ?")
       .run(req.user.id, space.id);
+    addParticipant(space.id, req.user.id);
     createTables(space.id, params.tableCount, params.defaultCapacity);
+    clearVotes(space.id);
+    clearTimers(space.id);
+    clearChat(space.id);
   })();
   notify(space, memberIds(space.id), req.user.id,
     `${req.user.username} set up the space — ${params.tableCount} ${params.tableCount === 1 ? 'table' : 'tables'}, ${params.tableCount * params.defaultCapacity} seats. Who's coming?`);
   sendUpdate(space, res);
 });
 
+// Wind a session down: wipe the furniture, return everyone who took part
+// at some point today (not just whoever still holds a seat) so they can be
+// invited to pledge for tomorrow.
+function endSession(space) {
+  const ids = new Set(
+    db.prepare('SELECT user_id FROM session_participants WHERE space_id = ?').all(space.id).map((r) => r.user_id),
+  );
+  for (const id of participantIds(space)) ids.add(id);
+  db.transaction(() => {
+    db.prepare('DELETE FROM tables WHERE space_id = ?').run(space.id);
+    db.prepare('DELETE FROM session_participants WHERE space_id = ?').run(space.id);
+    clearVotes(space.id);
+    clearTimers(space.id);
+    clearChat(space.id);
+    db.prepare("UPDATE spaces SET status = 'idle', opened_by = NULL, opened_at = NULL WHERE id = ?").run(space.id);
+  })();
+  return [...ids];
+}
+
 // End today's session: wipe tables and claims, keep the group and its code.
+// Once every seat is empty anyone may end it — the last person to leave
+// gets prompted to switch off the lights.
 spacesRouter.patch('/:code', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
-  if (!canManageSpace(space, req.user)) {
+  const seated = db.prepare(`
+    SELECT COUNT(*) AS n FROM claims c JOIN tables t ON t.id = c.table_id WHERE t.space_id = ?
+  `).get(space.id).n;
+  if (seated > 0 && !canManageSpace(space, req.user)) {
     return res.status(403).json({ error: 'Only the person who set up the space (or the group owner) can do that.' });
   }
   if (req.body?.status !== 'idle') return res.status(400).json({ error: 'Only ending the session is supported.' });
-  const participants = participantIds(space);
-  db.transaction(() => {
-    db.prepare('DELETE FROM tables WHERE space_id = ?').run(space.id);
-    db.prepare("UPDATE spaces SET status = 'idle', opened_by = NULL, opened_at = NULL WHERE id = ?").run(space.id);
-  })();
-  notify(space, participants, req.user.id, `${req.user.username} ended today's session.`);
+  const participants = endSession(space);
+  notify(space, participants, req.user.id,
+    `${req.user.username} ended today's session. Coming back tomorrow? Tap to sign up 🙋`);
+  sendUpdate(space, res);
+});
+
+// Pledge to come back tomorrow — pure intent, no arrival time. The first
+// person there the next morning sees the head count and knows what table
+// size to reserve.
+spacesRouter.post('/:code/tomorrow', (req, res) => {
+  const space = requireSpace(req, res);
+  if (!space) return;
+  addMember(space.id, req.user.id);
+  const fresh = !db.prepare('SELECT 1 FROM tomorrow_signups WHERE space_id = ? AND user_id = ? AND for_date >= ?')
+    .get(space.id, req.user.id, zurichDate());
+  db.prepare(`
+    INSERT INTO tomorrow_signups (space_id, user_id, for_date) VALUES (?, ?, ?)
+    ON CONFLICT(space_id, user_id) DO UPDATE SET for_date = excluded.for_date, created_at = unixepoch()
+  `).run(space.id, req.user.id, zurichDate(1));
+  if (fresh) {
+    // A little motivation for the ones already signed up.
+    const fellow = tomorrowPledges(space.id).map((p) => p.userId).filter((id) => id !== req.user.id);
+    if (fellow.length > 0) {
+      notify(space, fellow, req.user.id,
+        `${req.user.username} is in for tomorrow too — that's ${fellow.length + 1} of you now 💪`);
+    }
+  }
+  sendUpdate(space, res);
+});
+
+spacesRouter.delete('/:code/tomorrow', (req, res) => {
+  const space = requireSpace(req, res);
+  if (!space) return;
+  db.prepare('DELETE FROM tomorrow_signups WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);
   sendUpdate(space, res);
 });
 
@@ -296,6 +438,7 @@ spacesRouter.post('/:code/tables/:tableId/claims', (req, res) => {
   if (!eta) return res.status(400).json({ error: 'Invalid arrival time.' });
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
   if (!table) return res.status(404).json({ error: 'Table not found.' });
+  if (table.stolen) return res.status(409).json({ error: 'This table was taken by someone outside the group.' });
   if (table.released) return res.status(409).json({ error: 'This table has been given back.' });
 
   const join = db.transaction(() => {
@@ -319,6 +462,7 @@ spacesRouter.post('/:code/tables/:tableId/claims', (req, res) => {
     return res.status(e.status ?? 500).json({ error: e.message });
   }
   addMember(space.id, req.user.id);
+  addParticipant(space.id, req.user.id);
   notify(space, participantIds(space), req.user.id,
     eta === 'now' ? `${req.user.username} is here (${table.label}) 🎉` : `${req.user.username} is coming at ${eta} (${table.label})`);
   sendUpdate(space, res);
@@ -334,6 +478,7 @@ spacesRouter.post('/:code/tables/:tableId/guests', (req, res) => {
   if (!eta) return res.status(400).json({ error: 'Invalid arrival time.' });
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
   if (!table) return res.status(404).json({ error: 'Table not found.' });
+  if (table.stolen) return res.status(409).json({ error: 'This table was taken by someone outside the group.' });
   if (table.released) return res.status(409).json({ error: 'This table has been given back.' });
 
   const seat = pickSeat(table.id, table.capacity, req.body?.seat);
@@ -341,6 +486,7 @@ spacesRouter.post('/:code/tables/:tableId/guests', (req, res) => {
   const status = eta === 'now' ? 'arrived' : 'coming';
   db.prepare('INSERT INTO claims (table_id, user_id, guest_name, seat, eta, status, arrived_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(table.id, req.user.id, guestName, seat, eta, status, status === 'arrived' ? Math.floor(Date.now() / 1000) : null);
+  addParticipant(space.id, req.user.id);
   notify(space, participantIds(space), req.user.id,
     `${req.user.username} reserved a seat for ${guestName} (${table.label})`);
   sendUpdate(space, res);
@@ -407,21 +553,29 @@ spacesRouter.delete('/:code/claims/:claimId', (req, res) => {
   sendUpdate(space, res);
 });
 
-// Anyone in the session can add a table.
+// Anyone in the session can add a table. Existing tables (and the people on
+// them) stay exactly where they are: the odd rotated table flips into a pair
+// with the newcomer, or a fresh rotated one appears at the right edge.
 spacesRouter.post('/:code/tables', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
-  const tables = db.prepare('SELECT label, x, y, rot FROM tables WHERE space_id = ?').all(space.id);
+  const tables = db.prepare('SELECT id, label, x, y, rot FROM tables WHERE space_id = ?').all(space.id);
   if (tables.length >= 20) return res.status(409).json({ error: 'Maximum of 20 tables reached.' });
-  const spot = findAnyFreeSpot(0, tables.map((t) => tablePlacement(t.x, t.y, t.rot)));
+  const spot = nextTableSpot(tables);
   if (!spot) return res.status(409).json({ error: 'No space left in the room for another table.' });
   const maxNum = tables.reduce((m, t) => Math.max(m, Number(/^T(\d+)$/.exec(t.label)?.[1] ?? 0)), 0);
-  db.prepare('INSERT INTO tables (space_id, label, capacity, x, y) VALUES (?, ?, 1, ?, ?)')
-    .run(space.id, `T${maxNum + 1}`, spot.x, spot.y);
+  db.transaction(() => {
+    if (spot.flip) {
+      db.prepare('UPDATE tables SET x = ?, y = ?, rot = 0 WHERE id = ?').run(spot.flip.x, spot.flip.y, spot.flip.id);
+    }
+    db.prepare('INSERT INTO tables (space_id, label, capacity, x, y, rot) VALUES (?, ?, 1, ?, ?, ?)')
+      .run(space.id, `T${maxNum + 1}`, spot.x, spot.y, spot.rot);
+  })();
   sendUpdate(space, res);
 });
 
-// Anyone in the session can remove an empty table.
+// Anyone in the session can remove an empty table. The others stay put —
+// no re-arranging under people who are already seated.
 spacesRouter.delete('/:code/tables/:tableId', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
@@ -440,7 +594,7 @@ spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
   if (!table) return res.status(404).json({ error: 'Table not found.' });
 
-  const { released, capacity, x, y, rot } = req.body ?? {};
+  const { released, stolen, capacity, x, y, rot } = req.body ?? {};
   const updates = {};
 
   if (released !== undefined) {
@@ -448,8 +602,23 @@ spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
     if (released) {
       const { n } = db.prepare('SELECT COUNT(*) AS n FROM claims WHERE table_id = ?').get(table.id);
       if (n > 0) return res.status(409).json({ error: 'People are on this table — it cannot be given back.' });
+    } else {
+      updates.stolen = 0; // reserving the table again clears the "taken" mark
     }
     updates.released = released ? 1 : 0;
+  }
+  // Flag a table as taken by someone outside the group. Being taken implies
+  // it is out of our hands, so it also counts as given back.
+  if (stolen !== undefined) {
+    if (typeof stolen !== 'boolean') return res.status(400).json({ error: 'stolen must be true or false.' });
+    if (stolen) {
+      const { n } = db.prepare('SELECT COUNT(*) AS n FROM claims WHERE table_id = ?').get(table.id);
+      if (n > 0) return res.status(409).json({ error: 'People are on this table — it cannot be marked taken.' });
+      updates.stolen = 1;
+      updates.released = 1;
+    } else {
+      updates.stolen = 0;
+    }
   }
   if (capacity !== undefined) {
     if (!Number.isInteger(capacity) || capacity < 1 || capacity > 8) {
@@ -519,16 +688,18 @@ export function deleteSpace(space) {
   db.prepare('DELETE FROM spaces WHERE id = ?').run(space.id);
 }
 
-// Sessions are for one study day: auto-end after 16 hours, back to idle.
+// Sessions cover a long study day (through the night into the next
+// afternoon) before auto-ending back to idle.
+const SESSION_TTL_HOURS = 28;
+
 export function sweepExpired() {
-  const stale = db.prepare("SELECT id, code FROM spaces WHERE status = 'open' AND opened_at < unixepoch() - 16 * 3600").all();
-  if (stale.length === 0) return;
-  const end = db.transaction((s) => {
-    db.prepare('DELETE FROM tables WHERE space_id = ?').run(s.id);
-    db.prepare("UPDATE spaces SET status = 'idle', opened_by = NULL, opened_at = NULL WHERE id = ?").run(s.id);
-  });
+  const stale = db.prepare(`
+    SELECT id, code, name, owner_id, opened_by FROM spaces
+    WHERE status = 'open' AND opened_at < unixepoch() - ? * 3600
+  `).all(SESSION_TTL_HOURS);
   for (const s of stale) {
-    end(s);
+    const participants = endSession(s);
+    notify(s, participants, null, "Today's session wrapped up. Coming back tomorrow? Tap to sign up 🙋");
     broadcast(s.id, getSpaceState(s.code));
   }
 }
