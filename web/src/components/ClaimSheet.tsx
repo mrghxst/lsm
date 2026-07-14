@@ -6,8 +6,8 @@ import { EtaPicker } from './EtaPicker';
 import { Stepper } from './Stepper';
 
 interface Actions {
-  join(tableId: number, eta: string, seat?: number): void;
-  addGuest(tableId: number, name: string, eta: string, seat?: number): void;
+  join(tableId: number, eta: string, seat?: number, forUserId?: number): void;
+  addGuest(tableId: number, name: string, eta: string, seat?: number, hostUserId?: number): void;
   updateClaim(claimId: number, body: { eta?: string; status?: string }, close?: boolean): void;
   removeClaim(claimId: number, reason?: string): void;
   setReleased(tableId: number, released: boolean): void;
@@ -22,6 +22,7 @@ export function ClaimSheet({
   table,
   seat,
   userId,
+  isAdmin,
   canManageClaims,
   onClose,
   actions,
@@ -30,6 +31,7 @@ export function ClaimSheet({
   table: Table;
   seat: number;
   userId: number;
+  isAdmin: boolean;
   canManageClaims: boolean;
   onClose(): void;
   actions: Actions;
@@ -47,6 +49,10 @@ export function ClaimSheet({
   const [guestMode, setGuestMode] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [guestEta, setGuestEta] = useState('now');
+  const [bookMode, setBookMode] = useState(false);
+  const [bookUserId, setBookUserId] = useState<number | null>(null);
+  const [bookGuest, setBookGuest] = useState('');
+  const [bookEta, setBookEta] = useState('now');
   const [leaveMode, setLeaveMode] = useState(false);
   const [leaveReason, setLeaveReason] = useState('');
 
@@ -127,6 +133,59 @@ export function ClaimSheet({
   }
 
   const showGuestButton = !table.released && !isFull;
+
+  // Admins can put the seat in another member's name — either the member
+  // themselves (their name, their color) or a guest of theirs.
+  const otherMembers = state.members.filter((m) => m.userId !== userId);
+  const bookTarget = otherMembers.find((m) => m.userId === bookUserId) ?? null;
+  function submitBooking() {
+    if (!bookTarget) return;
+    if (bookGuest.trim()) actions.addGuest(table.id, bookGuest.trim(), bookEta, seat, bookTarget.userId);
+    else actions.join(table.id, bookEta, seat, bookTarget.userId);
+  }
+  const bookForm = bookMode && showGuestButton && (
+    <div className="stack guest-form">
+      <p className="sheet-label">{seatText}Book for someone else</p>
+      <select
+        className="input"
+        value={bookUserId ?? ''}
+        onChange={(e) => setBookUserId(e.target.value ? Number(e.target.value) : null)}
+        autoFocus
+      >
+        <option value="">Who is it for?</option>
+        {otherMembers.map((m) => (
+          <option key={m.userId} value={m.userId}>
+            {m.username}
+          </option>
+        ))}
+      </select>
+      <input
+        className="input"
+        value={bookGuest}
+        onChange={(e) => setBookGuest(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && bookTarget) {
+            e.preventDefault();
+            submitBooking();
+          }
+        }}
+        placeholder="Or a guest of theirs (optional)"
+        maxLength={20}
+      />
+      <EtaPicker value={bookEta} onChange={setBookEta} />
+      <button className="btn btn-primary" disabled={!bookTarget} onClick={submitBooking}>
+        {!bookTarget
+          ? 'Pick a person first'
+          : bookGuest.trim()
+            ? `Reserve for ${bookGuest.trim()} (friend of ${bookTarget.username})`
+            : `Book ${bookTarget.username} in`}
+      </button>
+      <button className="link-btn" onClick={() => setBookMode(false)}>
+        Back
+      </button>
+    </div>
+  );
+
   const guestForm = guestMode && showGuestButton && (
     <div className="stack guest-form">
       <p className="sheet-label">{seatText}Reserve for a friend</p>
@@ -171,12 +230,20 @@ export function ClaimSheet({
           </span>
         </div>
         <div className="stack">
-          {!guestMode && body}
+          {!guestMode && !bookMode && body}
           {guestForm}
-          {!guestMode && showGuestButton && (
-            <button className="btn btn-secondary" onClick={() => setGuestMode(true)}>
-              👋 Reserve a seat for a friend
-            </button>
+          {bookForm}
+          {!guestMode && !bookMode && showGuestButton && (
+            <>
+              <button className="btn btn-secondary" onClick={() => setGuestMode(true)}>
+                👋 Reserve a seat for a friend
+              </button>
+              {isAdmin && otherMembers.length > 0 && (
+                <button className="btn btn-secondary" onClick={() => setBookMode(true)}>
+                  🎟️ Book for someone else
+                </button>
+              )}
+            </>
           )}
 
           {others.length > 0 && (

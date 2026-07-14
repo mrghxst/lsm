@@ -258,10 +258,10 @@ export function Space() {
   }
 
   const actions = {
-    join: (tableId: number, eta: string, seat?: number) =>
-      mutate(`/api/spaces/${code}/tables/${tableId}/claims`, { method: 'POST', body: { eta, seat } }),
-    addGuest: (tableId: number, name: string, eta: string, seat?: number) =>
-      mutate(`/api/spaces/${code}/tables/${tableId}/guests`, { method: 'POST', body: { name, eta, seat } }),
+    join: (tableId: number, eta: string, seat?: number, forUserId?: number) =>
+      mutate(`/api/spaces/${code}/tables/${tableId}/claims`, { method: 'POST', body: { eta, seat, forUserId } }),
+    addGuest: (tableId: number, name: string, eta: string, seat?: number, hostUserId?: number) =>
+      mutate(`/api/spaces/${code}/tables/${tableId}/guests`, { method: 'POST', body: { name, eta, seat, hostUserId } }),
     updateClaim: (claimId: number, body: { eta?: string; status?: string }, close = true) =>
       mutate(`/api/spaces/${code}/claims/${claimId}`, { method: 'PATCH', body }, { close }),
     removeClaim: async (claimId: number, reason?: string) => {
@@ -387,6 +387,7 @@ export function Space() {
           table={selectedTable}
           seat={Math.min(selected.seat, selectedTable.capacity - 1)}
           userId={user.id}
+          isAdmin={user.isAdmin}
           canManageClaims={canManageSession}
           onClose={() => setSelected(null)}
           actions={actions}
