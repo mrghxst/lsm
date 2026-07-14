@@ -1,119 +1,325 @@
-# 🪑 Learning Space Manager
+<div align="center">
+  <img src=".github/readme-hero.svg" alt="Learning Space Manager — a live shared study room" width="100%" />
 
-A tiny mobile-first webapp for coordinating shared study tables at university.
+  <br />
 
-A **space** is a persistent study group with a share code that never changes.
-Each morning, the first person to arrive reserves some tables and *sets up* the
-space in the app — everyone in the group gets a push notification and sees live
-who's coming, when, and how many seats are left. The person on site can **give
-back** the tables nobody needs. Ending the day's session clears the tables but
-keeps the group, its code and its members for tomorrow.
+  <a href="https://github.com/michaelmrusch/lsm/actions/workflows/docker.yml">
+    <img src="https://github.com/michaelmrusch/lsm/actions/workflows/docker.yml/badge.svg?branch=main" alt="Docker image build" />
+  </a>
+  <img src="https://img.shields.io/badge/PWA-installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white" alt="Installable PWA" />
+  <img src="https://img.shields.io/badge/Node.js-24-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js 24" />
+  <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=0B1220" alt="React 18" />
+  <img src="https://img.shields.io/badge/SQLite-07405E?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
+  <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker ready" />
+  <a href="https://github.com/michaelmrusch/lsm/commits/main">
+    <img src="https://img.shields.io/github/last-commit/michaelmrusch/lsm?style=flat-square&logo=github&label=last%20commit" alt="Last commit" />
+  </a>
 
-## Features
+  <p>
+    <strong>A tiny, mobile-first app for coordinating shared study tables at university.</strong><br />
+    Know who is coming, where everyone is sitting, and when it is time to focus.
+  </p>
 
-- **No-friction accounts** — name + PIN + a personal color; registering needs a one-time invite code from an admin (the first account and `ADMIN_USERNAME` bootstrap without one)
-- **Live sync** — every phone updates instantly via Server-Sent Events
-- **Top-down room view** — tables are drawn as split rectangles, one segment per seat, filled with each person's color (outlined = coming, solid = arrived). Each seat labels itself with the fullest form that fits on one line without ever changing the font size — full name, else the first name, else the first three or two letters — so a roomy two-seater reads "Andrea" where a packed four-seater reads "And"
-- **Collaborative table setup** — everyone in the session can add/remove tables, set seat counts, drag tables around the room and rotate them 90°. Tables build rightward as if the left side were a wall: pairs stacked into columns, an odd count standing rotated at the right end. Adding a table never moves anyone already seated — the rotated one flips in place into a pair with the newcomer, or a fresh rotated one appears at the right edge. The room always shows the smallest square window that keeps at least three empty grid squares between the outermost tables and every edge — the classic 8-squares view for a small block. Adding/removing tables re-tightens the frame for everyone (gliding, with at most a slight rescale for zoomed-in viewers); dragging one only ever *grows* the canvas without shifting anyone's view (the new space sits off-screen until you pan). Grid lines render at a constant one screen pixel at any zoom, the walls are labelled (Window left, Corridor right), and pinch/scroll overrides the framing with ⤢ snapping back
-- **Guest seats** — reserve a seat for a friend without the app, shown as "friend of ‹member›"
-- **Push notifications** — installable PWA; the whole group is notified when someone sets up the space in the morning, participants when people join/arrive/leave (on iPhone: add to Home Screen first, then enable — iOS requirement)
-- **Smart summary** — "1 here · 2 coming (next ~16:30) · 5 free seats"
-- **Admin panel** — the account named in `ADMIN_USERNAME` sees all spaces and users at `/admin`, can delete either (e.g. offensive names), and generates the one-time invite codes new members need to register
-- **Persistent groups** — 6-character codes / shareable links that stay valid; your home screen shows each group's live status
-- **Auto-reset** — sessions end themselves after 28 hours (a long study day into the next); the group stays
-- **Tomorrow pledges** — the last one out is prompted to end the session; everyone who took part gets a push asking "coming back tomorrow?" — one tap signals intent (no time needed), so the first person there next morning knows what table size to grab, and fellow pledgers get a small motivational nudge
-- **Votes** — WhatsApp-style polls per session: anyone starts one with a question and as many options as needed (a yes/no is just a two-option poll), everyone can add further options, results fill live progress bars, and ballots can be changed or retracted anytime. A one-tap **"Where to eat lunch?"** button starts a vote preloaded with the ETH Zentrum spots (Clausiusbar, Archimedes, Polysnack, Obere/Untere Mensa, Orient Catering) — ℹ️ shows today's live menus straight from ETH's gastronomy API (plus Orient Catering's Dürüm card), a mensa that is known closed today shows 🌙 instead, each person may suggest at most one extra place per day, and non-voters get one reminder push at 11:00. Dish names carrying a photo show a 📷 you can tap to peek at how it looks — hidden by default so the menu stays scannable. A slim chip shows just the current leader; details live in an overlay
-- **Focus timer** — anyone starts a shared 45 / 60 / 90 min (or custom) round; everyone else in the session gets a push invite and the first 10% of the round to join. A circular ring drains around the countdown, everyone who joined is shown by name to pull the rest in, and when the round rings all participants get a "break time" push. One round at a time per space; the break card lingers ~10 min or until dismissed
-- **Room chat** — a small chat button pinned bottom-right (like a support widget, hidden until tapped) opens a minimal message panel scoped to the people with a seat **today**: no need to spam the big WhatsApp group. Everyone in the space can read; writing needs a seat. Unread messages show as a count on the button; the 🔔/🔕 toggle in the panel mutes both the push notifications and the badge. The log is wiped with the session
+  <p>
+    <a href="#highlights">Highlights</a> ·
+    <a href="#quick-start">Quick start</a> ·
+    <a href="#docker-deployment">Docker</a> ·
+    <a href="#architecture">Architecture</a> ·
+    <a href="#api-reference">API</a>
+  </p>
+</div>
 
-## Local development
+## ✨ Why LSM?
+
+Group study coordination usually gets scattered across chat messages:
+
+> “Who is there?” · “Is there still a seat?” · “When are you coming?” · “Are we focusing now?”
+
+Learning Space Manager turns that noise into one live room. A **space** is a persistent study group with a stable six-character code. Each day, the first person on site opens the room, reserves tables, and lets everyone else claim a seat with an ETA.
+
+```mermaid
+flowchart LR
+    setup["☀️ Set up<br/>Reserve today's tables"]
+    seats["🪑 Claim seats<br/>Share arrival times"]
+    study["⏱️ Study together<br/>Focus, vote and chat"]
+    close["🌙 Close the day<br/>Release the room"]
+    tomorrow["🙋 Tomorrow?<br/>Pledge to return"]
+
+    setup --> seats --> study --> close --> tomorrow
+```
+
+<a id="highlights"></a>
+
+## 🌟 Highlights
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🗺️ A room that updates live</h3>
+      Every phone sees the same top-down table map, occupied seats, arrival status, ETAs, free capacity, votes, timers, and chat through Server-Sent Events.
+    </td>
+    <td width="50%" valign="top">
+      <h3>🪑 Fast seat coordination</h3>
+      Claim a precise seat, move between tables, reserve for a guest, mark yourself arrived, or release the spot when you leave.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🧩 Collaborative table setup</h3>
+      Add or remove tables together, change their capacity, drag them around the room, and rotate them without moving people who are already seated.
+    </td>
+    <td width="50%" valign="top">
+      <h3>⏱️ Focus together</h3>
+      Start a shared 45, 60, 90, or custom-minute focus round. Others can join during the opening window and every participant gets the break alert.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>📲 Installable and notification-ready</h3>
+      LSM is a mobile-first PWA with Web Push for morning setup, room activity, votes, focus timers, and chat.
+    </td>
+    <td width="50%" valign="top">
+      <h3>🥙 Decisions without chat chaos</h3>
+      Run live polls or launch the ETH Zentrum lunch vote with current menus, dish previews, suggestions, and a reminder for non-voters.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>💬 A room-sized chat</h3>
+      Keep day-specific coordination out of the big WhatsApp group. The chat disappears with the session and can be muted whenever the room needs quiet.
+    </td>
+    <td width="50%" valign="top">
+      <h3>🔐 Invite-only small groups</h3>
+      Persistent space codes, one-time registration invites, and an admin overview keep access and moderation simple.
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>More feature details</strong></summary>
+
+### Room and tables
+
+- Tables are draggable, rotatable in 90° steps, and adjustable from one to eight seats.
+- The room automatically frames the occupied layout while keeping space around the edges.
+- Seats use solid colors for people who are present and outlined colors for people who are coming.
+- Labels choose the fullest name that fits without shrinking the font.
+- Empty tables can be returned, reclaimed, or marked as taken by people outside the group.
+- A session automatically expires after 28 hours, while its group and members remain available.
+
+### Groups and people
+
+- Accounts use a name, four-to-eight-digit PIN, and personal color.
+- New registrations require a one-time admin invite; the first account and `ADMIN_USERNAME` can bootstrap access.
+- Space codes and share links are permanent, even though the daily room is reset.
+- The home screen shows people counts and free-seat availability for every active space.
+- Tomorrow pledges give the next opener an early estimate of how many seats will be needed.
+
+### Collaboration
+
+- Poll options can be added by the group and ballots can be changed or withdrawn.
+- Lunch votes include ETH Zentrum menus, closures, dish photos, and limited user suggestions.
+- Shared focus rounds display every participant and send a single break notification when time is up.
+- Session chat is readable by the space and writable by people holding a seat that day.
+
+</details>
+
+<a id="quick-start"></a>
+
+## 🚀 Quick start
+
+### Requirements
+
+- [Node.js 24](https://nodejs.org/) recommended
+- npm
 
 ```bash
+git clone https://github.com/michaelmrusch/lsm.git
+cd lsm
+
 npm install
 npm --prefix web install
-npm run dev        # server on :3000, Vite dev server on :5173
+npm run dev
 ```
 
-Open http://localhost:5173. The SQLite database is created at `data/lsm.sqlite`.
+Open [http://localhost:5173](http://localhost:5173). The API runs on `http://localhost:3000`, and SQLite is created automatically at `data/lsm.sqlite`.
 
-## Deployment (Docker Compose)
+### Useful commands
 
-`docker-compose.yml` pulls the prebuilt `mrghxst/lsm:latest` image — CI
-rebuilds and pushes it on every push to `main` or `my-build`, so no local
-build step is needed on the server:
-
-```bash
-git clone <this repo> lsm && cd lsm
-docker compose up -d
-```
-
-The app listens on port 3000 and the SQLite database is persisted in `./data/`
-on the host.
-
-Public access and HTTPS are handled by a **Cloudflare Tunnel** (Zero Trust):
-point your `cloudflared` ingress at `http://localhost:3000` and Cloudflare
-terminates TLS at your hostname — no reverse proxy or certificate setup on the
-server. If `cloudflared` runs on the same host, bind the app to
-`127.0.0.1:3000:3000` in `docker-compose.yml` so the tunnel is the only way in.
-
-To unlock the admin panel, uncomment `ADMIN_USERNAME` in `docker-compose.yml` and
-set it to your account name, then `docker compose up -d`.
-
-### Updating
-
-```bash
-docker compose up -d
-```
-
-`pull_policy: always` means this always fetches the latest pushed image first — no `git pull` needed on the server unless `docker-compose.yml` itself changed.
-
-## How it works
-
-| Piece | Tech |
+| Command | Purpose |
 |---|---|
-| Backend | Node.js + Express (ES modules) |
-| Database | SQLite (`better-sqlite3`), single file in `data/` |
-| Realtime | Server-Sent Events, one channel per space |
-| Push | Web Push (VAPID keys auto-generated into `data/vapid.json`) + service worker |
-| Auth | Username + PIN (bcrypt), HTTP-only cookie sessions (90 days) |
-| Frontend | React 18 + TypeScript + Vite, installable PWA |
+| `npm run dev` | Run Express and Vite together with live reload |
+| `npm run build` | Type-check and build the production frontend |
+| `npm start` | Start Express and serve the frontend produced by `npm run build` |
 
-### API overview
+<a id="docker-deployment"></a>
 
+## 🐳 Docker deployment
+
+The included Compose file runs the prebuilt image and persists all application data under `./data`.
+
+```bash
+git clone https://github.com/michaelmrusch/lsm.git
+cd lsm
+docker compose up -d
 ```
-POST   /api/auth/session                       register-or-login {username, pin, color?, inviteCode?}
-POST   /api/auth/logout
-GET    /api/auth/me
-POST   /api/spaces                             {name, tableCount, defaultCapacity} → {code} (create group + first session)
-GET    /api/me/spaces                          your groups with live stats
-GET    /api/spaces/:code                       full space state (also joins you to the group)
-GET    /api/spaces/:code/events                SSE live updates
-POST   /api/spaces/:code/sessions              {tableCount, defaultCapacity} set up today's session (notifies members)
-PATCH  /api/spaces/:code                       {status: 'idle'} end session (opener/owner, or anyone once all seats are free)
-POST   /api/spaces/:code/tomorrow              pledge "I'll be back tomorrow" (no time needed)
-DELETE /api/spaces/:code/tomorrow              withdraw the pledge
-DELETE /api/spaces/:code                       delete the group forever (owner/admin)
-POST   /api/spaces/:code/tables/:id/claims     {eta: 'now' | 'HH:MM'} join/move
-POST   /api/spaces/:code/tables/:id/guests     {name, eta} reserve for a friend
-PATCH  /api/spaces/:code/claims/:id            {eta} or {status: 'arrived'}
-DELETE /api/spaces/:code/claims/:id            free the seat
-POST   /api/spaces/:code/tables                add a table
-DELETE /api/spaces/:code/tables/:id            remove an empty table
-PATCH  /api/spaces/:code/tables/:id            {released?, capacity?, x?, y?, rot?}
-GET    /api/admin/overview                     all users + spaces (admin)
-DELETE /api/admin/users/:id                    delete a user (admin)
-POST   /api/spaces/:code/votes                 {title, options[]} start a poll · {kind:'lunch'} start the lunch vote
-DELETE /api/spaces/:code/votes/:id             remove a vote (creator/manager)
-POST   /api/spaces/:code/votes/:id/options     {label} add an option (lunch vote: max 1 extra per person)
-POST   /api/spaces/:code/votes/:id/ballots     {optionId} cast/change ballot (null = retract)
-POST   /api/spaces/:code/timers                {minutes} start a focus round (invites the session)
-POST   /api/spaces/:code/timers/:id/join       join — open for the first 10% of the round
-DELETE /api/spaces/:code/timers/:id/join       step out (last one out stops the round)
-DELETE /api/spaces/:code/timers/:id            stop a round (starter/manager) or dismiss a finished one
-POST   /api/spaces/:code/chat                  {text} message the room (needs a seat today)
-POST   /api/spaces/:code/chat/mute             {muted} toggle chat pushes + unread badge for yourself
-GET    /api/menus                              today's menus of the lunch spots, incl. per-dish photo URLs (cached)
-GET    /api/push/key                           VAPID public key
-POST   /api/push/subscribe                     {subscription} enable notifications
-POST   /api/push/unsubscribe                   {endpoint}
+
+Every push to `main` builds `ghcr.io/michaelmrusch/lsm` with GitHub Actions and the repository's built-in token. Images are tagged both `latest` and with the commit SHA for easy rollbacks.
+
+To update an existing installation:
+
+```bash
+docker compose up -d
 ```
+
+`pull_policy: always` fetches the newest image before recreating the service.
+
+<details>
+<summary><strong>Public access with Cloudflare Tunnel</strong></summary>
+
+Point a Cloudflare Zero Trust tunnel at `http://localhost:3000`; Cloudflare can terminate HTTPS without a separate reverse proxy or certificate setup.
+
+When `cloudflared` runs on the same machine, change the published port in `docker-compose.yml` to:
+
+```yaml
+ports:
+  - "127.0.0.1:3000:3000"
+```
+
+That keeps the app reachable through the tunnel without exposing port `3000` publicly.
+
+</details>
+
+### Configuration
+
+| Setting | Default | Description |
+|---|---:|---|
+| `PORT` | `3000` | Express HTTP port |
+| `DATA_DIR` | `./data` | SQLite database and generated VAPID keys |
+| `ADMIN_USERNAME` | — | Grants the matching account access to `/admin` |
+
+<a id="architecture"></a>
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    pwa["📱 React PWA"]
+    server["⚙️ Express server"]
+    db[("🗃️ SQLite")]
+    push["🔔 Web Push"]
+    eth["🥙 ETH menus"]
+
+    pwa -->|JSON API| server
+    server -->|live SSE updates| pwa
+    server <--> db
+    server --> push
+    server --> eth
+```
+
+| Layer | Technology | Role |
+|---|---|---|
+| Frontend | React 18, TypeScript, Vite | Mobile-first installable PWA |
+| Backend | Node.js 24, Express | Authentication, room logic, API and static hosting |
+| Database | SQLite, `better-sqlite3` | Single-file persistence with foreign keys |
+| Realtime | Server-Sent Events | Live room refreshes |
+| Notifications | Web Push, service worker | Mobile alerts for room activity and collaboration |
+| Deployment | Multi-stage Docker, Compose | Small production image and persistent data volume |
+
+```text
+lsm/
+├── server/                 # Express routes, SQLite schema and background jobs
+├── web/
+│   ├── src/                # React pages, components and PWA client logic
+│   └── public/             # Manifest, service worker and app icons
+├── scripts/                # Repository utilities
+├── .github/workflows/      # Container build and publish workflow
+├── docker-compose.yml
+└── Dockerfile
+```
+
+<a id="api-reference"></a>
+
+## 🔌 API reference
+
+<details>
+<summary><strong>Authentication, spaces, seats, collaboration, and admin endpoints</strong></summary>
+
+### Authentication and dashboard
+
+```text
+POST   /api/auth/session                       Register or sign in
+POST   /api/auth/logout                        End the current session
+GET    /api/auth/me                            Read the signed-in account
+GET    /api/me/spaces                          List the user's spaces with current stats
+```
+
+### Spaces and sessions
+
+```text
+POST   /api/spaces                             Create a group and first session
+GET    /api/spaces/:code                       Read live state and join the group
+GET    /api/spaces/:code/events                Space SSE stream
+POST   /api/spaces/:code/sessions              Set up today's room
+PATCH  /api/spaces/:code                       End today's session
+DELETE /api/spaces/:code                       Permanently delete the group
+POST   /api/spaces/:code/tomorrow              Pledge to return tomorrow
+DELETE /api/spaces/:code/tomorrow              Withdraw tomorrow's pledge
+```
+
+### Tables and seats
+
+```text
+POST   /api/spaces/:code/tables                Add a table
+PATCH  /api/spaces/:code/tables/:id            Move, rotate, resize or release a table
+DELETE /api/spaces/:code/tables/:id            Remove an empty table
+POST   /api/spaces/:code/tables/:id/claims     Claim or move to a seat
+POST   /api/spaces/:code/tables/:id/guests     Reserve a guest seat
+PATCH  /api/spaces/:code/claims/:id            Update ETA or mark arrived
+DELETE /api/spaces/:code/claims/:id            Release a seat
+```
+
+### Votes, timers, chat, and menus
+
+```text
+POST   /api/spaces/:code/votes                 Start a regular or lunch vote
+DELETE /api/spaces/:code/votes/:id             Remove a vote
+POST   /api/spaces/:code/votes/:id/options     Add an option
+POST   /api/spaces/:code/votes/:id/ballots     Cast, change or retract a ballot
+POST   /api/spaces/:code/timers                Start a shared focus round
+POST   /api/spaces/:code/timers/:id/join       Join a focus round
+DELETE /api/spaces/:code/timers/:id/join       Leave a focus round
+DELETE /api/spaces/:code/timers/:id            Stop or dismiss a focus round
+POST   /api/spaces/:code/chat                  Send a room message
+POST   /api/spaces/:code/chat/mute             Toggle chat notifications and unread badge
+GET    /api/menus                              Read today's cached menus
+```
+
+### Administration and push
+
+```text
+GET    /api/admin/overview                     Read users, spaces, and invite codes
+POST   /api/admin/invites                      Generate a one-time invite
+DELETE /api/admin/invites/:code                Revoke an unused invite
+DELETE /api/admin/users/:id                    Delete a non-admin account
+GET    /api/push/key                           Read the VAPID public key
+POST   /api/push/subscribe                     Save a push subscription
+POST   /api/push/unsubscribe                   Remove a push subscription
+```
+
+</details>
+
+## ✅ Verification
+
+Build the production frontend before shipping a change:
+
+```bash
+npm run build
+```
+
+The production build type-checks the React frontend and emits the static bundle consumed by Express and the Docker image.
+
+<div align="center">
+  <br />
+  <strong>Less coordination. More studying. 🪑</strong>
+</div>
