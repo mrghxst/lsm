@@ -3,16 +3,16 @@
 
   <br />
 
-  <a href="https://github.com/mrghxst/lsm/actions/workflows/docker.yml">
-    <img src="https://github.com/mrghxst/lsm/actions/workflows/docker.yml/badge.svg?branch=main" alt="Docker image build" />
+  <a href="https://github.com/michaelmrusch/lsm/actions/workflows/docker.yml">
+    <img src="https://github.com/michaelmrusch/lsm/actions/workflows/docker.yml/badge.svg?branch=main" alt="Docker image build" />
   </a>
   <img src="https://img.shields.io/badge/PWA-installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white" alt="Installable PWA" />
   <img src="https://img.shields.io/badge/Node.js-24-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js 24" />
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=0B1220" alt="React 18" />
   <img src="https://img.shields.io/badge/SQLite-07405E?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker ready" />
-  <a href="https://github.com/mrghxst/lsm/commits/main">
-    <img src="https://img.shields.io/github/last-commit/mrghxst/lsm?style=flat-square&logo=github&label=last%20commit" alt="Last commit" />
+  <a href="https://github.com/michaelmrusch/lsm/commits/main">
+    <img src="https://img.shields.io/github/last-commit/michaelmrusch/lsm?style=flat-square&logo=github&label=last%20commit" alt="Last commit" />
   </a>
 
   <p>
@@ -29,9 +29,6 @@
   </p>
 </div>
 
-> [!NOTE]
-> This fork is built directly on [michaelmrusch/lsm](https://github.com/michaelmrusch/lsm). It preserves the original shared-study-room experience while adding faster daily setup, a live home dashboard, invite sharing, membership controls, and more granular notifications.
-
 ## ✨ Why LSM?
 
 Group study coordination usually gets scattered across chat messages:
@@ -42,7 +39,7 @@ Learning Space Manager turns that noise into one live room. A **space** is a per
 
 ```mermaid
 flowchart LR
-    setup["☀️ Set up<br/>Reuse yesterday's layout"]
+    setup["☀️ Set up<br/>Reserve today's tables"]
     seats["🪑 Claim seats<br/>Share arrival times"]
     study["⏱️ Study together<br/>Focus, vote and chat"]
     close["🌙 Close the day<br/>Release the room"]
@@ -68,8 +65,8 @@ flowchart LR
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h3>⚡ Set up like yesterday</h3>
-      The active layout is remembered when a session ends. The next person can restore table positions, rotations, and capacities in one tap.
+      <h3>🧩 Collaborative table setup</h3>
+      Add or remove tables together, change their capacity, drag them around the room, and rotate them without moving people who are already seated.
     </td>
     <td width="50%" valign="top">
       <h3>⏱️ Focus together</h3>
@@ -79,7 +76,7 @@ flowchart LR
   <tr>
     <td width="50%" valign="top">
       <h3>📲 Installable and notification-ready</h3>
-      LSM is a mobile-first PWA with Web Push for setup, room activity, votes, focus timers, and chat. Each space has its own notification switches.
+      LSM is a mobile-first PWA with Web Push for morning setup, room activity, votes, focus timers, and chat.
     </td>
     <td width="50%" valign="top">
       <h3>🥙 Decisions without chat chaos</h3>
@@ -89,24 +86,14 @@ flowchart LR
   <tr>
     <td width="50%" valign="top">
       <h3>💬 A room-sized chat</h3>
-      Keep day-specific coordination out of the big WhatsApp group. The chat disappears with the session and separates push muting from unread badges.
+      Keep day-specific coordination out of the big WhatsApp group. The chat disappears with the session and can be muted whenever the room needs quiet.
     </td>
     <td width="50%" valign="top">
-      <h3>🔐 Small-group ownership</h3>
-      Archive or leave spaces, rename groups, transfer ownership, manage your membership, and share one-time registration links from the admin panel.
+      <h3>🔐 Invite-only small groups</h3>
+      Persistent space codes, one-time registration invites, and an admin overview keep access and moderation simple.
     </td>
   </tr>
 </table>
-
-### What this fork adds
-
-- ⚡ **Live home dashboard** — seat availability and group activity update without refreshing.
-- 🕘 **One-tap repeat setup** — restore the last active table layout on the next study day.
-- 🔗 **Shareable invite links** — copy or share a registration URL with the invite already filled in.
-- 👥 **Membership controls** — archive, leave, rename, transfer, and manage spaces cleanly.
-- 🔔 **Per-space notification settings** — independently control setup, activity, votes, timers, and chat pushes.
-- 🎨 **Unique member colors per space** — the room map stays easy to read when preferred colors collide.
-- 💬 **Independent chat controls** — mute chat pushes without hiding unread counts, or hide the badge without muting pushes.
 
 <details>
 <summary><strong>More feature details</strong></summary>
@@ -125,7 +112,7 @@ flowchart LR
 - Accounts use a name, four-to-eight-digit PIN, and personal color.
 - New registrations require a one-time admin invite; the first account and `ADMIN_USERNAME` can bootstrap access.
 - Space codes and share links are permanent, even though the daily room is reset.
-- The home screen shows live people counts and free-seat availability for every active space.
+- The home screen shows people counts and free-seat availability for every active space.
 - Tomorrow pledges give the next opener an early estimate of how many seats will be needed.
 
 ### Collaboration
@@ -147,7 +134,7 @@ flowchart LR
 - npm
 
 ```bash
-git clone https://github.com/mrghxst/lsm.git
+git clone https://github.com/michaelmrusch/lsm.git
 cd lsm
 
 npm install
@@ -162,7 +149,6 @@ Open [http://localhost:5173](http://localhost:5173). The API runs on `http://loc
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Run Express and Vite together with live reload |
-| `npm test` | Run the Node test suite |
 | `npm run build` | Type-check and build the production frontend |
 | `npm start` | Start Express and serve the frontend produced by `npm run build` |
 
@@ -173,34 +159,12 @@ Open [http://localhost:5173](http://localhost:5173). The API runs on `http://loc
 The included Compose file runs the prebuilt image and persists all application data under `./data`.
 
 ```bash
-git clone https://github.com/mrghxst/lsm.git
+git clone https://github.com/michaelmrusch/lsm.git
 cd lsm
-```
-
-Create a local `.env` beside `docker-compose.yml` and point it at this fork's image:
-
-```dotenv
-# Docker Hub, when the repository secrets are configured
-LSM_IMAGE=mrghxst/lsm:latest
-
-# Or use the automatic GitHub Container Registry fallback:
-# LSM_IMAGE=ghcr.io/mrghxst/lsm:latest
-```
-
-Then start the app:
-
-```bash
 docker compose up -d
 ```
 
-> [!IMPORTANT]
-> `docker-compose.yml` defaults to Michael's upstream image so it remains reusable upstream. Set `LSM_IMAGE` when deploying this fork; `.env` is already ignored by Git.
-
-Every push to `main` runs the Docker workflow:
-
-- With `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, it publishes to Docker Hub.
-- Without those secrets, it publishes to `ghcr.io/<repository-owner>/lsm` using GitHub's built-in token.
-- Images are tagged both `latest` and with the commit SHA for easy rollbacks.
+Every push to `main` builds `ghcr.io/michaelmrusch/lsm` with GitHub Actions and the repository's built-in token. Images are tagged both `latest` and with the commit SHA for easy rollbacks.
 
 To update an existing installation:
 
@@ -233,7 +197,6 @@ That keeps the app reachable through the tunnel without exposing port `3000` pub
 | `PORT` | `3000` | Express HTTP port |
 | `DATA_DIR` | `./data` | SQLite database and generated VAPID keys |
 | `ADMIN_USERNAME` | — | Grants the matching account access to `/admin` |
-| `LSM_IMAGE` | upstream image | Compose image override for forks and private builds |
 
 <a id="architecture"></a>
 
@@ -259,8 +222,8 @@ flowchart LR
 | Frontend | React 18, TypeScript, Vite | Mobile-first installable PWA |
 | Backend | Node.js 24, Express | Authentication, room logic, API and static hosting |
 | Database | SQLite, `better-sqlite3` | Single-file persistence with foreign keys |
-| Realtime | Server-Sent Events | Live room and home-dashboard refreshes |
-| Notifications | Web Push, service worker | Per-space mobile alerts |
+| Realtime | Server-Sent Events | Live room refreshes |
+| Notifications | Web Push, service worker | Mobile alerts for room activity and collaboration |
 | Deployment | Multi-stage Docker, Compose | Small production image and persistent data volume |
 
 ```text
@@ -269,7 +232,6 @@ lsm/
 ├── web/
 │   ├── src/                # React pages, components and PWA client logic
 │   └── public/             # Manifest, service worker and app icons
-├── test/                   # Node API, migration, layout, date and push tests
 ├── scripts/                # Repository utilities
 ├── .github/workflows/      # Container build and publish workflow
 ├── docker-compose.yml
@@ -289,8 +251,7 @@ lsm/
 POST   /api/auth/session                       Register or sign in
 POST   /api/auth/logout                        End the current session
 GET    /api/auth/me                            Read the signed-in account
-GET    /api/me/spaces                          List the user's spaces with live stats
-GET    /api/me/events                          Dashboard SSE stream
+GET    /api/me/spaces                          List the user's spaces with current stats
 ```
 
 ### Spaces and sessions
@@ -302,10 +263,6 @@ GET    /api/spaces/:code/events                Space SSE stream
 POST   /api/spaces/:code/sessions              Set up today's room
 PATCH  /api/spaces/:code                       End today's session
 DELETE /api/spaces/:code                       Permanently delete the group
-GET    /api/spaces/:code/membership            Read personal space settings
-PATCH  /api/spaces/:code/membership            Archive or change notifications
-DELETE /api/spaces/:code/membership            Leave the space
-PATCH  /api/spaces/:code/settings              Rename or transfer ownership
 POST   /api/spaces/:code/tomorrow              Pledge to return tomorrow
 DELETE /api/spaces/:code/tomorrow              Withdraw tomorrow's pledge
 ```
@@ -334,8 +291,7 @@ POST   /api/spaces/:code/timers/:id/join       Join a focus round
 DELETE /api/spaces/:code/timers/:id/join       Leave a focus round
 DELETE /api/spaces/:code/timers/:id            Stop or dismiss a focus round
 POST   /api/spaces/:code/chat                  Send a room message
-POST   /api/spaces/:code/chat/mute             Toggle chat pushes
-POST   /api/spaces/:code/chat/badge            Toggle the unread badge
+POST   /api/spaces/:code/chat/mute             Toggle chat notifications and unread badge
 GET    /api/menus                              Read today's cached menus
 ```
 
@@ -355,18 +311,13 @@ POST   /api/push/unsubscribe                   Remove a push subscription
 
 ## ✅ Verification
 
-Run both checks before shipping a change:
+Build the production frontend before shipping a change:
 
 ```bash
-npm test
 npm run build
 ```
 
 The production build type-checks the React frontend and emits the static bundle consumed by Express and the Docker image.
-
-## 🙌 Credits
-
-Learning Space Manager was created by [Michael Mrusch](https://github.com/michaelmrusch) and continues at [michaelmrusch/lsm](https://github.com/michaelmrusch/lsm). This fork is maintained at [mrghxst/lsm](https://github.com/mrghxst/lsm) with workflow and quality-of-life improvements for its study group.
 
 <div align="center">
   <br />
