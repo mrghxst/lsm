@@ -38,12 +38,19 @@ Open http://localhost:5173. The SQLite database is created at `data/lsm.sqlite`.
 
 ## Deployment (Docker Compose)
 
-`docker-compose.yml` pulls the prebuilt `mrghxst/lsm:latest` image — CI
-rebuilds and pushes it on every push to `main` or `my-build`, so no local
-build step is needed on the server:
+`docker-compose.yml` pulls a prebuilt image — CI rebuilds and pushes it on
+every push to `main`, so no local build step is needed on the server. The CI
+workflow picks its registry automatically: with `DOCKERHUB_USERNAME` /
+`DOCKERHUB_TOKEN` repo secrets set it publishes to Docker Hub, otherwise it
+publishes to `ghcr.io/<owner>/lsm` using the built-in token (no secrets).
+
+By default Compose pulls the upstream `ghcr.io/michaelmrusch/lsm:latest`. To
+run your own fork's image, set `LSM_IMAGE` in a local `.env` next to
+`docker-compose.yml` (git-ignored, so it never ends up in a commit or PR):
 
 ```bash
 git clone <this repo> lsm && cd lsm
+echo 'LSM_IMAGE=mrghxst/lsm:latest' > .env   # your fork's image; omit to use upstream
 docker compose up -d
 ```
 

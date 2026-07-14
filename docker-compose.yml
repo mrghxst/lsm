@@ -1,6 +1,9 @@
 services:
   lsm:
-    image: mrghxst/lsm:latest
+    # Which image to pull. Defaults to the upstream ghcr build; override it in
+    # a local .env (LSM_IMAGE=your-registry/lsm:latest) to run your own fork's
+    # image — e.g. a Docker Hub build: LSM_IMAGE=mrghxst/lsm:latest
+    image: ${LSM_IMAGE:-ghcr.io/michaelmrusch/lsm:latest}
     pull_policy: always
     restart: unless-stopped
     ports:
