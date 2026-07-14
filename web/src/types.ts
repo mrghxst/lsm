@@ -41,6 +41,14 @@ export interface SpaceInfo {
   createdAt: number;
 }
 
+// Everyone who ever opened the space (they had the code, so they're in the
+// group) — the pool admins can book seats for.
+export interface Member {
+  userId: number;
+  username: string;
+  color: string;
+}
+
 // "I'll be back tomorrow" pledge — intent only, no arrival time.
 export interface TomorrowPledge {
   userId: number;
@@ -125,6 +133,7 @@ export interface FacilityMenu {
 export interface SpaceState {
   space: SpaceInfo;
   tables: Table[];
+  members: Member[];
   tomorrow: TomorrowPledge[];
   votes: Vote[];
   timer: FocusTimer | null;

@@ -17,6 +17,32 @@
   box-sizing: border-box;
 }
 
+/* Chrome's chunky light-grey scrollbars clash with the dark theme — slim,
+   rounded and track-less everywhere (standard properties for new browsers,
+   ::-webkit-scrollbar for older Chrome/Safari). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 html,
 body {
   margin: 0;
@@ -797,6 +823,10 @@ body {
   border-radius: 22px 22px 0 0;
   padding: 10px 18px calc(24px + env(safe-area-inset-bottom));
   animation: sheet-up 0.2s ease-out;
+  /* Long sheets scroll inside themselves instead of growing past the screen. */
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 @keyframes sheet-up {
@@ -807,6 +837,26 @@ body {
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+/* On big screens a sheet glued to the bottom edge of the monitor looks
+   off — float it as a centered dialog with breathing room instead. */
+@media (min-width: 1000px) {
+  .sheet-backdrop {
+    align-items: center;
+    padding: 32px;
+  }
+
+  .sheet {
+    border-radius: 22px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+    max-height: min(820px, 100%);
+  }
+
+  .sheet-handle {
+    display: none;
   }
 }
 
@@ -1490,11 +1540,6 @@ body {
 
 .vote-chip-new {
   font-weight: 600;
-}
-
-.vote-sheet {
-  max-height: 86vh;
-  overflow-y: auto;
 }
 
 .vote-card {

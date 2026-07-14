@@ -120,6 +120,16 @@ export function getSpaceState(code) {
           arrivedAt: c.arrived_at,
         })),
     })),
+    members: db.prepare(`
+      SELECT u.id, u.username, u.color FROM space_members m
+      JOIN users u ON u.id = m.user_id
+      WHERE m.space_id = ?
+      ORDER BY u.username COLLATE NOCASE
+    `).all(space.id).map((u) => ({
+      userId: u.id,
+      username: u.username,
+      color: colorFor({ id: u.id, color: u.color }),
+    })),
     tomorrow: tomorrowPledges(space.id),
     votes: votesForState(space.id),
     timer: timerForState(space.id),
@@ -430,7 +440,22 @@ spacesRouter.delete('/:code/tomorrow', (req, res) => {
   sendUpdate(space, res);
 });
 
-// Join a table yourself (or move there from another table).
+// A booking in someone else's name (forUserId / hostUserId) is an admin
+// move: it puts words in another member's mouth, so nobody else gets to.
+function resolveBookingTarget(req, res, idField) {
+  const targetId = req.body?.[idField];
+  if (targetId === undefined || targetId === null || targetId === req.user.id) return req.user;
+  if (!req.user.is_admin) {
+    res.status(403).json({ error: 'Only an admin can book seats in someone else\'s name.' });
+    return null;
+  }
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+  if (!target) res.status(404).json({ error: 'That person does not exist.' });
+  return target ?? null;
+}
+
+// Join a table yourself (or move there from another table). Admins may
+// pass forUserId to book the seat as another member instead.
 spacesRouter.post('/:code/tables/:tableId/claims', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
@@ -440,12 +465,14 @@ spacesRouter.post('/:code/tables/:tableId/claims', (req, res) => {
   if (!table) return res.status(404).json({ error: 'Table not found.' });
   if (table.stolen) return res.status(409).json({ error: 'This table was taken by someone outside the group.' });
   if (table.released) return res.status(409).json({ error: 'This table has been given back.' });
+  const target = resolveBookingTarget(req, res, 'forUserId');
+  if (!target) return;
 
   const join = db.transaction(() => {
     db.prepare(`
       DELETE FROM claims WHERE user_id = ? AND guest_name IS NULL
         AND table_id IN (SELECT id FROM tables WHERE space_id = ?)
-    `).run(req.user.id, space.id);
+    `).run(target.id, space.id);
     const seat = pickSeat(table.id, table.capacity, req.body?.seat);
     if (seat === null) {
       const err = new Error('This table is already full.');
@@ -454,21 +481,26 @@ spacesRouter.post('/:code/tables/:tableId/claims', (req, res) => {
     }
     const status = eta === 'now' ? 'arrived' : 'coming';
     db.prepare('INSERT INTO claims (table_id, user_id, seat, eta, status, arrived_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(table.id, req.user.id, seat, eta, status, status === 'arrived' ? Math.floor(Date.now() / 1000) : null);
+      .run(table.id, target.id, seat, eta, status, status === 'arrived' ? Math.floor(Date.now() / 1000) : null);
   });
   try {
     join();
   } catch (e) {
     return res.status(e.status ?? 500).json({ error: e.message });
   }
-  addMember(space.id, req.user.id);
-  addParticipant(space.id, req.user.id);
-  notify(space, participantIds(space), req.user.id,
-    eta === 'now' ? `${req.user.username} is here (${table.label}) 🎉` : `${req.user.username} is coming at ${eta} (${table.label})`);
+  addMember(space.id, target.id);
+  addParticipant(space.id, target.id);
+  const message = target.id === req.user.id
+    ? eta === 'now' ? `${req.user.username} is here (${table.label}) 🎉` : `${req.user.username} is coming at ${eta} (${table.label})`
+    : eta === 'now'
+      ? `${req.user.username} booked ${target.username} in — they're here (${table.label}) 🎉`
+      : `${req.user.username} booked a seat for ${target.username} at ${eta} (${table.label})`;
+  notify(space, participantIds(space), req.user.id, message);
   sendUpdate(space, res);
 });
 
-// Reserve a seat for a friend without the app.
+// Reserve a seat for a friend without the app. Admins may pass hostUserId
+// to attribute the guest to another member ("friend of Anna").
 spacesRouter.post('/:code/tables/:tableId/guests', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
@@ -480,15 +512,20 @@ spacesRouter.post('/:code/tables/:tableId/guests', (req, res) => {
   if (!table) return res.status(404).json({ error: 'Table not found.' });
   if (table.stolen) return res.status(409).json({ error: 'This table was taken by someone outside the group.' });
   if (table.released) return res.status(409).json({ error: 'This table has been given back.' });
+  const host = resolveBookingTarget(req, res, 'hostUserId');
+  if (!host) return;
 
   const seat = pickSeat(table.id, table.capacity, req.body?.seat);
   if (seat === null) return res.status(409).json({ error: 'This table is already full.' });
   const status = eta === 'now' ? 'arrived' : 'coming';
   db.prepare('INSERT INTO claims (table_id, user_id, guest_name, seat, eta, status, arrived_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(table.id, req.user.id, guestName, seat, eta, status, status === 'arrived' ? Math.floor(Date.now() / 1000) : null);
-  addParticipant(space.id, req.user.id);
+    .run(table.id, host.id, guestName, seat, eta, status, status === 'arrived' ? Math.floor(Date.now() / 1000) : null);
+  addMember(space.id, host.id);
+  addParticipant(space.id, host.id);
   notify(space, participantIds(space), req.user.id,
-    `${req.user.username} reserved a seat for ${guestName} (${table.label})`);
+    host.id === req.user.id
+      ? `${req.user.username} reserved a seat for ${guestName} (${table.label})`
+      : `${req.user.username} reserved a seat for ${guestName}, friend of ${host.username} (${table.label})`);
   sendUpdate(space, res);
 });
 
