@@ -45,9 +45,17 @@ export function Space() {
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+    setState(null);
+    setError(null);
+    setConnected(false);
+    setSelected(null);
+    setVotesOpen(false);
     api<SpaceState>(`/api/spaces/${code}`)
       .then((s) => {
-        if (!cancelled) setState(s);
+        if (!cancelled) {
+          setError(null);
+          setState(s);
+        }
       })
       .catch((e) => {
         if (cancelled) return;
@@ -60,6 +68,7 @@ export function Space() {
         navigate('/', { replace: true });
         return;
       }
+      setError(null);
       setState(data);
       setConnected(true);
     };
@@ -68,7 +77,7 @@ export function Space() {
       cancelled = true;
       es.close();
     };
-  }, [user, code]);
+  }, [user, code, navigate]);
 
   const mutate = useCallback(
     async (path: string, options: { method: string; body?: unknown }, { close = true } = {}) => {

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api } from './api';
+import { disablePush, pushSupported, syncPushSubscription } from './push';
 import type { User } from './types';
 
 interface AuthContextValue {
@@ -29,9 +30,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: { username, pin, color, inviteCode },
     });
     setUser(r.user);
+    // Notification setup must not turn a successful sign-in into a failure.
+    await syncPushSubscription().catch(() => {});
   }, []);
 
   const signOut = useCallback(async () => {
+    // Remove the current browser endpoint while its authenticated session can
+    // still identify the correct owner. Other devices remain subscribed.
+    if (pushSupported()) await disablePush().catch(() => {});
     await api('/api/auth/logout', { method: 'POST' });
     setUser(null);
   }, []);

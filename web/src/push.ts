@@ -23,8 +23,21 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 
 export async function getPushEnabled(): Promise<boolean> {
   if (!pushSupported() || Notification.permission !== 'granted') return false;
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return false;
   return !!(await reg.pushManager.getSubscription());
+}
+
+// A PushSubscription belongs to the browser profile and can outlive an app
+// session. Re-save an existing subscription after sign-in so it follows the
+// current account instead of continuing to point at whoever used the browser
+// previously.
+export async function syncPushSubscription(): Promise<void> {
+  if (!pushSupported() || Notification.permission !== 'granted') return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  await api('/api/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
 }
 
 export async function enablePush(): Promise<void> {
@@ -40,9 +53,15 @@ export async function enablePush(): Promise<void> {
 }
 
 export async function disablePush(): Promise<void> {
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return;
   const sub = await reg.pushManager.getSubscription();
   if (!sub) return;
-  await api('/api/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } });
-  await sub.unsubscribe();
+  try {
+    await api('/api/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } });
+  } finally {
+    // Even if the server cannot be reached, stop this browser from receiving
+    // notifications for the account that is signing out.
+    await sub.unsubscribe();
+  }
 }
