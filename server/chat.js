@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from './db.js';
 import { broadcast } from './events.js';
 import { getSpaceState } from './spaces.js';
-import { notifyUsers } from './push.js';
+import { notifySpaceUsers } from './push.js';
 import { colorFor } from './colors.js';
 
 // Room chat: a tiny session-scoped channel for the people actually at the
@@ -80,12 +80,12 @@ chatRouter.post('/', (req, res) => {
     `).run(space.id, space.id, KEEP);
   })();
 
-  // Push to everyone with a seat today except the sender and the muted.
-  const muted = new Set(db.prepare('SELECT user_id FROM chat_mutes WHERE space_id = ?').all(space.id).map((r) => r.user_id));
+  // Push to everyone with a seat today except the sender; per-space chat
+  // preferences are applied by notifySpaceUsers.
   const recipients = db.prepare(`
     SELECT DISTINCT c.user_id FROM claims c JOIN tables t ON t.id = c.table_id WHERE t.space_id = ?
-  `).all(space.id).map((r) => r.user_id).filter((id) => id !== req.user.id && !muted.has(id));
-  notifyUsers(recipients, {
+  `).all(space.id).map((r) => r.user_id).filter((id) => id !== req.user.id);
+  notifySpaceUsers(space.id, recipients, 'chat', {
     title: space.name,
     body: `${req.user.username}: ${body.length > 120 ? `${body.slice(0, 119)}…` : body}`,
     url: `/s/${space.code}`,
@@ -100,10 +100,15 @@ chatRouter.post('/mute', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
   if (typeof req.body?.muted !== 'boolean') return res.status(400).json({ error: 'muted must be true or false.' });
-  if (req.body.muted) {
-    db.prepare('INSERT OR IGNORE INTO chat_mutes (space_id, user_id) VALUES (?, ?)').run(space.id, req.user.id);
-  } else {
-    db.prepare('DELETE FROM chat_mutes WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);
-  }
+  addChatPreference(space.id, req.user.id, !req.body.muted);
   sendUpdate(space, res);
 });
+
+function addChatPreference(spaceId, userId, enabled) {
+  db.transaction(() => {
+    db.prepare('UPDATE space_members SET notify_chat = ? WHERE space_id = ? AND user_id = ?')
+      .run(enabled ? 1 : 0, spaceId, userId);
+    if (enabled) db.prepare('DELETE FROM chat_mutes WHERE space_id = ? AND user_id = ?').run(spaceId, userId);
+    else db.prepare('INSERT OR IGNORE INTO chat_mutes (space_id, user_id) VALUES (?, ?)').run(spaceId, userId);
+  })();
+}

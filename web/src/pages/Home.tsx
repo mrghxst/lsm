@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
@@ -30,17 +30,49 @@ export function Home() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [inviteNeeded, setInviteNeeded] = useState(false);
-  const [inviteCode, setInviteCode] = useState('');
+  const linkedInvite = (searchParams.get('invite') ?? '').trim().toUpperCase();
+  const [inviteNeeded, setInviteNeeded] = useState(linkedInvite.length > 0);
+  const [inviteCode, setInviteCode] = useState(linkedInvite);
   const [joinCode, setJoinCode] = useState('');
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
+  const [groupsError, setGroupsError] = useState<string | null>(null);
+
+  const refreshGroups = useCallback(async () => {
+    try {
+      const result = await api<{ spaces: GroupSummary[] }>('/api/me/spaces');
+      setGroups(result.spaces);
+      setGroupsError(null);
+    } catch (e) {
+      setGroupsError(e instanceof Error ? e.message : 'Could not refresh your spaces.');
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
-    api<{ spaces: GroupSummary[] }>('/api/me/spaces')
-      .then((r) => setGroups(r.spaces))
-      .catch(() => setGroups([]));
-  }, [user]);
+    let refreshTimer: number | undefined;
+    const scheduleRefresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void refreshGroups(), 150);
+    };
+    void refreshGroups();
+    const es = new EventSource('/api/me/events');
+    es.onmessage = scheduleRefresh;
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearTimeout(refreshTimer);
+      es.close();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [user, refreshGroups]);
+
+  useEffect(() => {
+    if (!linkedInvite) return;
+    setInviteCode(linkedInvite);
+    setInviteNeeded(true);
+  }, [linkedInvite]);
 
   async function submitSignIn(e: FormEvent) {
     e.preventDefault();
@@ -50,7 +82,7 @@ export function Home() {
       await signIn(username.trim(), pin, color, inviteCode.trim() || undefined);
       localStorage.setItem('lsm.lastName', username.trim());
       localStorage.setItem('lsm.lastColor', color);
-      if (next) navigate(next);
+      navigate(next || '/', { replace: true });
     } catch (err) {
       // 403 = this is a new name and registration needs an admin's
       // one-time invite code: reveal the field for it.
@@ -151,6 +183,23 @@ export function Home() {
     );
   }
 
+  const activeGroups = (groups ?? []).filter((group) => !group.archived);
+  const archivedGroups = (groups ?? []).filter((group) => group.archived);
+  const groupRow = (g: GroupSummary) => (
+    <Link key={g.code} to={`/s/${g.code}`} className="recent-row group-row">
+      <span className={`group-status ${g.status}`} />
+      <span className="group-main">
+        <span className="recent-name">{g.name}</span>
+        <span className="group-sub">
+          {g.status === 'open'
+            ? `${g.openedByName} set it up · ${g.peopleCount} ${g.peopleCount === 1 ? 'person' : 'people'} · ${g.freeSeats} ${g.freeSeats === 1 ? 'seat' : 'seats'} free`
+            : 'Nothing set up today'}
+        </span>
+      </span>
+      <span className="recent-code">{g.code}</span>
+    </Link>
+  );
+
   return (
     <div className="app">
       <header className="page-head">
@@ -173,24 +222,24 @@ export function Home() {
       </header>
 
       <div className="stack">
-        {groups && groups.length > 0 && (
+        {groupsError && (
+          <p className="error">
+            {groupsError}{' '}
+            <button className="link-btn" onClick={() => void refreshGroups()}>Retry</button>
+          </p>
+        )}
+        {activeGroups.length > 0 && (
           <div className="card stack">
             <h2 className="section-title">Your spaces</h2>
-            {groups.map((g) => (
-              <Link key={g.code} to={`/s/${g.code}`} className="recent-row group-row">
-                <span className={`group-status ${g.status}`} />
-                <span className="group-main">
-                  <span className="recent-name">{g.name}</span>
-                  <span className="group-sub">
-                    {g.status === 'open'
-                      ? `${g.openedByName} set it up · ${g.peopleCount} ${g.peopleCount === 1 ? 'person' : 'people'} · ${g.freeSeats} ${g.freeSeats === 1 ? 'seat' : 'seats'} free`
-                      : 'Nothing set up today'}
-                  </span>
-                </span>
-                <span className="recent-code">{g.code}</span>
-              </Link>
-            ))}
+            {activeGroups.map(groupRow)}
           </div>
+        )}
+
+        {archivedGroups.length > 0 && (
+          <details className="card archived-spaces">
+            <summary>Archived spaces ({archivedGroups.length})</summary>
+            <div className="stack archived-list">{archivedGroups.map(groupRow)}</div>
+          </details>
         )}
 
         <Link to="/new" className="btn btn-primary btn-link">

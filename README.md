@@ -11,6 +11,12 @@ keeps the group, its code and its members for tomorrow.
 
 ## Features
 
+- **One-tap repeat setup** - ending a session remembers the active table layout, capacities, and positions, so the next opener can restore yesterday's setup immediately
+- **Live home dashboard** - group status and seat availability refresh instantly over Server-Sent Events
+- **Membership controls** - archive or leave spaces; owners can rename them and transfer ownership
+- **Per-space notifications** - separate switches for daily setup, room activity, votes, focus timers, and chat
+- **Shareable registration links** - admins can copy or share invite URLs that prefill the one-time code and preserve an optional destination
+
 - **No-friction accounts** — name + PIN + a personal color; registering needs a one-time invite code from an admin (the first account and `ADMIN_USERNAME` bootstrap without one)
 - **Live sync** — every phone updates instantly via Server-Sent Events
 - **Top-down room view** — tables are drawn as split rectangles, one segment per seat, filled with each person's color (outlined = coming, solid = arrived). Each seat labels itself with the fullest form that fits on one line without ever changing the font size — full name, else the first name, else the first three or two letters — so a roomy two-seater reads "Andrea" where a packed four-seater reads "And"
@@ -93,10 +99,15 @@ POST   /api/auth/logout
 GET    /api/auth/me
 POST   /api/spaces                             {name, tableCount, defaultCapacity} → {code} (create group + first session)
 GET    /api/me/spaces                          your groups with live stats
+GET    /api/me/events                          SSE refresh stream for the home dashboard
 GET    /api/spaces/:code                       full space state (also joins you to the group)
 GET    /api/spaces/:code/events                SSE live updates
 POST   /api/spaces/:code/sessions              {tableCount, defaultCapacity} set up today's session (notifies members)
 PATCH  /api/spaces/:code                       {status: 'idle'} end session (opener/owner, or anyone once all seats are free)
+GET    /api/spaces/:code/membership            your archive + notification settings
+PATCH  /api/spaces/:code/membership            {archived?, notifications?}
+DELETE /api/spaces/:code/membership            leave the space (non-owner, no active seat)
+PATCH  /api/spaces/:code/settings              {name?, ownerId?} (owner/admin)
 POST   /api/spaces/:code/tomorrow              pledge "I'll be back tomorrow" (no time needed)
 DELETE /api/spaces/:code/tomorrow              withdraw the pledge
 DELETE /api/spaces/:code                       delete the group forever (owner/admin)

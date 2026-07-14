@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS spaces (
   status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'open')),
   opened_by INTEGER REFERENCES users(id),
   opened_at INTEGER,
+  last_layout TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
@@ -43,6 +44,12 @@ CREATE TABLE IF NOT EXISTS space_members (
   space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   joined_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  archived INTEGER NOT NULL DEFAULT 0,
+  notify_setup INTEGER NOT NULL DEFAULT 1,
+  notify_activity INTEGER NOT NULL DEFAULT 1,
+  notify_votes INTEGER NOT NULL DEFAULT 1,
+  notify_timers INTEGER NOT NULL DEFAULT 1,
+  notify_chat INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (space_id, user_id)
 );
 
@@ -301,6 +308,28 @@ if (!hasColumn('users', 'is_admin')) {
   db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
 }
 
+if (!hasColumn('spaces', 'last_layout')) {
+  db.exec('ALTER TABLE spaces ADD COLUMN last_layout TEXT');
+}
+
+if (!hasColumn('space_members', 'archived')) {
+  db.exec('ALTER TABLE space_members ADD COLUMN archived INTEGER NOT NULL DEFAULT 0');
+}
+
+for (const category of ['setup', 'activity', 'votes', 'timers']) {
+  if (!hasColumn('space_members', `notify_${category}`)) {
+    db.exec(`ALTER TABLE space_members ADD COLUMN notify_${category} INTEGER NOT NULL DEFAULT 1`);
+  }
+}
+
+if (!hasColumn('space_members', 'notify_chat')) {
+  db.exec('ALTER TABLE space_members ADD COLUMN notify_chat INTEGER NOT NULL DEFAULT 1');
+  db.exec(`UPDATE space_members SET notify_chat = 0 WHERE EXISTS (
+    SELECT 1 FROM chat_mutes cm
+    WHERE cm.space_id = space_members.space_id AND cm.user_id = space_members.user_id
+  )`);
+}
+
 if (!hasColumn('tables', 'capacity')) {
   db.exec('ALTER TABLE tables ADD COLUMN capacity INTEGER NOT NULL DEFAULT 2');
   db.exec(`UPDATE tables SET capacity = COALESCE(
@@ -337,13 +366,15 @@ if (!hasColumn('spaces', 'opened_by')) {
         status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'open')),
         opened_by INTEGER REFERENCES users(id),
         opened_at INTEGER,
+        last_layout TEXT,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
       );
-      INSERT INTO spaces_new (id, code, name, owner_id, status, opened_by, opened_at, created_at)
+      INSERT INTO spaces_new (id, code, name, owner_id, status, opened_by, opened_at, last_layout, created_at)
         SELECT id, code, name, owner_id,
                CASE WHEN status = 'open' THEN 'open' ELSE 'idle' END,
                CASE WHEN status = 'open' THEN owner_id ELSE NULL END,
                CASE WHEN status = 'open' THEN created_at ELSE NULL END,
+               last_layout,
                created_at
         FROM spaces;
       DROP TABLE spaces;

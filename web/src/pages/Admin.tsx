@@ -46,6 +46,7 @@ export function Admin() {
   const navigate = useNavigate();
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     api<Overview>('/api/admin/overview')
@@ -83,6 +84,33 @@ export function Admin() {
       refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not revoke the code.');
+    }
+  }
+
+  function inviteUrl(code: string) {
+    const url = new URL('/', window.location.origin);
+    url.searchParams.set('invite', code);
+    return url.toString();
+  }
+
+  async function copyInvite(code: string) {
+    try {
+      await navigator.clipboard.writeText(inviteUrl(code));
+      setCopiedInvite(code);
+      window.setTimeout(() => setCopiedInvite((current) => (current === code ? null : current)), 2500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not copy the invite link.');
+    }
+  }
+
+  async function shareInvite(code: string) {
+    const url = inviteUrl(code);
+    if (!navigator.share) return copyInvite(code);
+    try {
+      await navigator.share({ title: 'Learning Space Manager invite', text: 'Use this link to create your account.', url });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setError(e instanceof Error ? e.message : 'Could not share the invite link.');
     }
   }
 
@@ -128,9 +156,17 @@ export function Admin() {
                   </span>
                 </span>
                 {!i.usedAt && (
-                  <button className="occupant-btn danger" title="Revoke code" onClick={() => void revokeInvite(i.code)}>
+                  <span className="admin-invite-actions">
+                    <button className="btn btn-secondary btn-compact" onClick={() => void copyInvite(i.code)}>
+                      {copiedInvite === i.code ? 'Copied!' : 'Copy link'}
+                    </button>
+                    <button className="btn btn-secondary btn-compact" onClick={() => void shareInvite(i.code)}>
+                      Share
+                    </button>
+                    <button className="occupant-btn danger" title="Revoke code" onClick={() => void revokeInvite(i.code)}>
                     ✕
-                  </button>
+                    </button>
+                  </span>
                 )}
               </div>
             ))}

@@ -11,8 +11,9 @@ import { vapidPublicKey, saveSubscription, removeSubscription } from './push.js'
 import { sendLunchReminders } from './votes.js';
 import { sweepTimers } from './timers.js';
 import { menusHandler } from './menus.js';
+import { subscribeDashboard } from './events.js';
 
-const app = express();
+export const app = express();
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(cookieParser());
@@ -22,6 +23,18 @@ app.use('/api/spaces', spacesRouter);
 app.use('/api/admin', adminRouter);
 
 app.get('/api/me/spaces', requireAuth, (req, res) => res.json({ spaces: listUserSpaces(req.user.id) }));
+app.get('/api/me/events', requireAuth, (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  res.write(`data: ${JSON.stringify({ ready: true })}\n\n`);
+  const unsubscribe = subscribeDashboard(res);
+  req.on('close', unsubscribe);
+});
 app.get('/api/menus', requireAuth, menusHandler);
 
 app.get('/api/push/key', (req, res) => res.json({ key: vapidPublicKey }));
@@ -99,5 +112,9 @@ setInterval(() => {
   db.prepare('DELETE FROM auth_tokens WHERE expires_at < unixepoch()').run();
 }, 24 * 3600 * 1000).unref();
 
-const port = Number(process.env.PORT) || 3000;
-app.listen(port, () => console.log(`Learning Space Manager listening on http://localhost:${port}`));
+export function startServer(port = Number(process.env.PORT) || 3000) {
+  return app.listen(port, () => console.log(`Learning Space Manager listening on http://localhost:${port}`));
+}
+
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) startServer();
