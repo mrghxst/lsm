@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../AuthContext';
 import { disablePush, enablePush, getPushEnabled, iosNeedsInstall, pushSupported } from '../push';
-import type { SpaceState } from '../types';
+import type { NotificationPreferences, SpaceMembership, SpaceState } from '../types';
 import { SummaryBar } from '../components/SummaryBar';
 import { Room } from '../components/Room';
 import { PeopleList } from '../components/PeopleList';
@@ -12,6 +12,7 @@ import { Stepper } from '../components/Stepper';
 import { VotesBar, VoteSheet } from '../components/Votes';
 import { FocusTimerCard } from '../components/FocusTimer';
 import { RoomChat } from '../components/Chat';
+import { SpaceSettings } from '../components/SpaceSettings';
 
 export function Space() {
   const { code = '' } = useParams();
@@ -26,6 +27,8 @@ export function Space() {
   const [setupTables, setSetupTables] = useState(4);
   const [setupSeats, setSetupSeats] = useState(1);
   const [votesOpen, setVotesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [membership, setMembership] = useState<SpaceMembership | null>(null);
   const toastTimer = useRef<number>();
 
   const showToast = useCallback((msg: string) => {
@@ -50,6 +53,8 @@ export function Space() {
     setConnected(false);
     setSelected(null);
     setVotesOpen(false);
+    setSettingsOpen(false);
+    setMembership(null);
     api<SpaceState>(`/api/spaces/${code}`)
       .then((s) => {
         if (!cancelled) {
@@ -61,6 +66,11 @@ export function Space() {
         if (cancelled) return;
         setError(e instanceof ApiError && e.status === 404 ? 'This space does not exist.' : e.message);
       });
+    api<SpaceMembership>(`/api/spaces/${code}/membership`)
+      .then((result) => {
+        if (!cancelled) setMembership(result);
+      })
+      .catch(() => {});
     const es = new EventSource(`/api/spaces/${code}/events`);
     es.onmessage = (e) => {
       const data = JSON.parse(e.data);
@@ -162,6 +172,26 @@ export function Space() {
     }
   }
 
+  async function deleteSpaceNow() {
+    await api(`/api/spaces/${code}`, { method: 'DELETE' });
+    navigate('/', { replace: true });
+  }
+
+  async function updateMembership(patch: { archived?: boolean; notifications?: Partial<NotificationPreferences> }) {
+    const result = await api<SpaceMembership>(`/api/spaces/${code}/membership`, { method: 'PATCH', body: patch });
+    setMembership(result);
+  }
+
+  async function updateSpaceSettings(patch: { name?: string; ownerId?: number }) {
+    const result = await api<SpaceState>(`/api/spaces/${code}/settings`, { method: 'PATCH', body: patch });
+    setState(result);
+  }
+
+  async function leaveSpace() {
+    await api(`/api/spaces/${code}/membership`, { method: 'DELETE' });
+    navigate('/', { replace: true });
+  }
+
   const header = (
     <header className="top-bar">
       <Link to="/" className="icon-btn" aria-label="Back">
@@ -185,7 +215,25 @@ export function Space() {
       <button className="icon-btn" onClick={() => void share()} aria-label="Share">
         📤
       </button>
+      <button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Space settings">
+        &#9881;
+      </button>
     </header>
+  );
+
+  const settings = settingsOpen && membership && (
+    <SpaceSettings
+      state={state}
+      membership={membership}
+      user={user}
+      onClose={() => setSettingsOpen(false)}
+      actions={{
+        updateMembership,
+        updateSpace: updateSpaceSettings,
+        leaveSpace,
+        deleteSpace: deleteSpaceNow,
+      }}
+    />
   );
 
   const pledges = state.tomorrow;
@@ -231,7 +279,26 @@ export function Space() {
               {myPledge ? "✋ Can't make it tomorrow after all" : "🙋 I'll be there tomorrow"}
             </button>
           </div>
+          {space.lastSetup && (
+            <div className="card stack reuse-setup-card">
+              <h2 className="section-title">Use yesterday's setup</h2>
+              <p className="hint">
+                Restore the same layout with {space.lastSetup.tableCount}{' '}
+                {space.lastSetup.tableCount === 1 ? 'table' : 'tables'} and {space.lastSetup.totalSeats} seats.
+              </p>
+              <button
+                className="btn btn-primary"
+                onClick={() => void mutate(`/api/spaces/${code}/sessions`, {
+                  method: 'POST',
+                  body: { reuseLastLayout: true },
+                })}
+              >
+                &#127749; Set up like yesterday
+              </button>
+            </div>
+          )}
           <div className="card stack">
+            {space.lastSetup && <p className="sheet-label">Or use a different setup</p>}
             <Stepper label="Tables reserved" value={setupTables} min={1} max={20} onChange={setSetupTables} />
             <Stepper label="Seats per table" value={setupSeats} min={1} max={8} onChange={setSetupSeats} />
             <button
@@ -252,6 +319,7 @@ export function Space() {
             </button>
           )}
         </div>
+        {settings}
         {toast && <div className="toast">{toast}</div>}
       </div>
     );
@@ -323,8 +391,15 @@ export function Space() {
   const chatActions = {
     sendMessage: (text: string) =>
       void mutate(`/api/spaces/${code}/chat`, { method: 'POST', body: { text } }, { close: false }),
-    setChatMuted: (muted: boolean) =>
-      void mutate(`/api/spaces/${code}/chat/mute`, { method: 'POST', body: { muted } }, { close: false }),
+    setChatMuted: async (muted: boolean) => {
+      const result = await mutate(`/api/spaces/${code}/chat/mute`, { method: 'POST', body: { muted } }, { close: false });
+      if (result) {
+        setMembership((current) => current ? {
+          ...current,
+          notifications: { ...current.notifications, chat: !muted },
+        } : current);
+      }
+    },
   };
   // Writing needs a seat of your own today; reading is open to anyone here.
   const hasSeat = tables.some((t) => t.claims.some((c) => c.userId === user.id && !c.guestName));
@@ -395,6 +470,8 @@ export function Space() {
       )}
 
       <RoomChat chat={state.chat} userId={user.id} code={code} canChat={hasSeat} actions={chatActions} />
+
+      {settings}
 
       {toast && <div className="toast">{toast}</div>}
     </div>

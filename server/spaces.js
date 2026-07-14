@@ -4,11 +4,12 @@ import { db, gridPositions, tablePlacement, findFreeSpot, placementsOverlap, GRI
 import { requireAuth } from './auth.js';
 import { subscribe, broadcast } from './events.js';
 import { colorFor } from './colors.js';
-import { notifyUsers } from './push.js';
+import { notifySpaceUsers } from './push.js';
 import { votesRouter, votesForState, clearVotes } from './votes.js';
 import { timersRouter, timerForState, clearTimers } from './timers.js';
 import { chatRouter, chatForState, clearChat } from './chat.js';
 import { zurichDate } from './dates.js';
+import { layoutSummary, parseLayout, snapshotLayout } from './layouts.js';
 
 export const spacesRouter = Router();
 spacesRouter.use(requireAuth);
@@ -89,6 +90,7 @@ export function getSpaceState(code) {
       openedBy: space.opened_by,
       openedByName: space.opened_by_name,
       openedAt: space.opened_at,
+      lastSetup: layoutSummary(space.last_layout),
       createdAt: space.created_at,
     },
     tables: tables.map((t) => ({
@@ -133,7 +135,7 @@ export function getSpaceState(code) {
 
 export function listUserSpaces(userId) {
   const rows = db.prepare(`
-    SELECT s.*, o.username AS owner_name, op.username AS opened_by_name,
+    SELECT s.*, m.archived, o.username AS owner_name, op.username AS opened_by_name,
       (SELECT COALESCE(SUM(t.capacity), 0) FROM tables t
         WHERE t.space_id = s.id AND t.released = 0) AS seats,
       (SELECT COUNT(*) FROM claims c JOIN tables t ON t.id = c.table_id
@@ -154,6 +156,7 @@ export function listUserSpaces(userId) {
     totalSeats: s.seats,
     peopleCount: s.people,
     freeSeats: Math.max(0, s.seats - s.people),
+    archived: !!s.archived,
   }));
 }
 
@@ -198,7 +201,7 @@ function requireOpenSpace(req, res) {
 
 function sendUpdate(space, res) {
   const state = getSpaceState(space.code);
-  broadcast(space.id, state);
+  broadcast(space.id, state, true);
   res.json(state);
 }
 
@@ -214,8 +217,8 @@ function participantIds(space) {
   return [...ids];
 }
 
-function notify(space, recipientIds, actorId, body) {
-  notifyUsers(recipientIds.filter((id) => id !== actorId), {
+function notify(space, recipientIds, actorId, body, category = 'activity') {
+  notifySpaceUsers(space.id, recipientIds.filter((id) => id !== actorId), category, {
     title: space.name,
     body,
     url: `/s/${space.code}`,
@@ -229,6 +232,29 @@ function createTables(spaceId, tableCount, capacity) {
   for (let i = 0; i < tableCount; i++) {
     insertTable.run(spaceId, `T${i + 1}`, capacity, positions[i].x, positions[i].y, positions[i].rot);
   }
+}
+
+function createTablesFromLayout(spaceId, layout) {
+  const insert = db.prepare('INSERT INTO tables (space_id, label, capacity, x, y, rot) VALUES (?, ?, ?, ?, ?, ?)');
+  for (const table of layout) insert.run(spaceId, table.label, table.capacity, table.x, table.y, table.rot);
+}
+
+function membershipState(spaceId, userId) {
+  const row = db.prepare(`
+    SELECT archived, notify_setup, notify_activity, notify_votes, notify_timers, notify_chat
+    FROM space_members WHERE space_id = ? AND user_id = ?
+  `).get(spaceId, userId);
+  if (!row) return null;
+  return {
+    archived: !!row.archived,
+    notifications: {
+      setup: !!row.notify_setup,
+      activity: !!row.notify_activity,
+      votes: !!row.notify_votes,
+      timers: !!row.notify_timers,
+      chat: !!row.notify_chat,
+    },
+  };
 }
 
 const placementCenter = (p) => ({ x: (p.leftCell + p.wc / 2) * GRID_CELL, y: (p.topCell + p.hc / 2) * GRID_CELL });
@@ -337,14 +363,114 @@ spacesRouter.get('/:code/events', (req, res) => {
   req.on('close', unsubscribe);
 });
 
+spacesRouter.get('/:code/membership', (req, res) => {
+  const space = requireSpace(req, res);
+  if (!space) return;
+  addMember(space.id, req.user.id);
+  res.json(membershipState(space.id, req.user.id));
+});
+
+spacesRouter.patch('/:code/membership', (req, res) => {
+  const space = requireSpace(req, res);
+  if (!space) return;
+  addMember(space.id, req.user.id);
+  const updates = {};
+  if (req.body?.archived !== undefined) {
+    if (typeof req.body.archived !== 'boolean') return res.status(400).json({ error: 'archived must be true or false.' });
+    updates.archived = req.body.archived ? 1 : 0;
+  }
+  const notifications = req.body?.notifications;
+  if (notifications !== undefined) {
+    if (!notifications || typeof notifications !== 'object' || Array.isArray(notifications)) {
+      return res.status(400).json({ error: 'Invalid notification settings.' });
+    }
+    for (const category of ['setup', 'activity', 'votes', 'timers', 'chat']) {
+      if (notifications[category] === undefined) continue;
+      if (typeof notifications[category] !== 'boolean') {
+        return res.status(400).json({ error: `${category} must be true or false.` });
+      }
+      updates[`notify_${category}`] = notifications[category] ? 1 : 0;
+    }
+  }
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Nothing to change.' });
+  db.transaction(() => {
+    const sql = Object.keys(updates).map((key) => `${key} = ?`).join(', ');
+    db.prepare(`UPDATE space_members SET ${sql} WHERE space_id = ? AND user_id = ?`)
+      .run(...Object.values(updates), space.id, req.user.id);
+    if (updates.notify_chat !== undefined) {
+      if (updates.notify_chat) {
+        db.prepare('DELETE FROM chat_mutes WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);
+      } else {
+        db.prepare('INSERT OR IGNORE INTO chat_mutes (space_id, user_id) VALUES (?, ?)').run(space.id, req.user.id);
+      }
+    }
+  })();
+  broadcast(space.id, getSpaceState(space.code), true);
+  res.json(membershipState(space.id, req.user.id));
+});
+
+spacesRouter.delete('/:code/membership', (req, res) => {
+  const space = requireSpace(req, res);
+  if (!space) return;
+  if (space.owner_id === req.user.id) {
+    return res.status(409).json({ error: 'Transfer ownership or delete the space before leaving it.' });
+  }
+  if (space.status === 'open' && space.opened_by === req.user.id) {
+    return res.status(409).json({ error: 'End the session before leaving the space you set up.' });
+  }
+  const seated = db.prepare(`
+    SELECT 1 FROM claims c JOIN tables t ON t.id = c.table_id
+    WHERE t.space_id = ? AND c.user_id = ? LIMIT 1
+  `).get(space.id, req.user.id);
+  if (seated) return res.status(409).json({ error: 'Leave your seat before leaving this space.' });
+  db.transaction(() => {
+    db.prepare('DELETE FROM tomorrow_signups WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);
+    db.prepare('DELETE FROM session_participants WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);
+    db.prepare('DELETE FROM chat_mutes WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);
+    db.prepare('DELETE FROM space_members WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);
+  })();
+  broadcast(space.id, getSpaceState(space.code), true);
+  res.json({ ok: true });
+});
+
+spacesRouter.patch('/:code/settings', (req, res) => {
+  const space = requireSpace(req, res);
+  if (!space) return;
+  if (space.owner_id !== req.user.id && !req.user.is_admin) {
+    return res.status(403).json({ error: 'Only the group owner can change these settings.' });
+  }
+  const updates = {};
+  if (req.body?.name !== undefined) {
+    const name = String(req.body.name).trim();
+    if (!name || name.length > 60) return res.status(400).json({ error: 'Give the space a name (max 60 characters).' });
+    updates.name = name;
+  }
+  if (req.body?.ownerId !== undefined) {
+    const ownerId = Number(req.body.ownerId);
+    if (!Number.isInteger(ownerId)) return res.status(400).json({ error: 'Invalid owner.' });
+    const member = db.prepare('SELECT 1 FROM space_members WHERE space_id = ? AND user_id = ?').get(space.id, ownerId);
+    if (!member) return res.status(400).json({ error: 'The new owner must already be a member of this space.' });
+    updates.owner_id = ownerId;
+  }
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Nothing to change.' });
+  const sql = Object.keys(updates).map((key) => `${key} = ?`).join(', ');
+  db.prepare(`UPDATE spaces SET ${sql} WHERE id = ?`).run(...Object.values(updates), space.id);
+  const state = getSpaceState(space.code);
+  broadcast(space.id, state, true);
+  res.json(state);
+});
+
 // Open today's session: the first person to arrive sets up the tables.
 // This is the notification the whole group gets in the morning.
 spacesRouter.post('/:code/sessions', (req, res) => {
   const space = requireSpace(req, res);
   if (!space) return;
   if (space.status === 'open') return res.status(409).json({ error: 'The space is already set up.' });
-  const params = validateSessionParams(req, res);
-  if (!params) return;
+  const reuseLastLayout = req.body?.reuseLastLayout === true;
+  const layout = reuseLastLayout ? parseLayout(space.last_layout) : [];
+  if (reuseLastLayout && layout.length === 0) return res.status(409).json({ error: 'There is no previous setup to reuse yet.' });
+  const params = reuseLastLayout ? null : validateSessionParams(req, res);
+  if (!reuseLastLayout && !params) return;
 
   db.transaction(() => {
     db.prepare('DELETE FROM tables WHERE space_id = ?').run(space.id);
@@ -355,13 +481,16 @@ spacesRouter.post('/:code/sessions', (req, res) => {
     db.prepare("UPDATE spaces SET status = 'open', opened_by = ?, opened_at = unixepoch() WHERE id = ?")
       .run(req.user.id, space.id);
     addParticipant(space.id, req.user.id);
-    createTables(space.id, params.tableCount, params.defaultCapacity);
+    if (reuseLastLayout) createTablesFromLayout(space.id, layout);
+    else createTables(space.id, params.tableCount, params.defaultCapacity);
     clearVotes(space.id);
     clearTimers(space.id);
     clearChat(space.id);
   })();
+  const tableCount = reuseLastLayout ? layout.length : params.tableCount;
+  const totalSeats = reuseLastLayout ? layout.reduce((sum, table) => sum + table.capacity, 0) : params.tableCount * params.defaultCapacity;
   notify(space, memberIds(space.id), req.user.id,
-    `${req.user.username} set up the space — ${params.tableCount} ${params.tableCount === 1 ? 'table' : 'tables'}, ${params.tableCount * params.defaultCapacity} seats. Who's coming?`);
+    `${req.user.username} set up the space — ${tableCount} ${tableCount === 1 ? 'table' : 'tables'}, ${totalSeats} seats. Who's coming?`, 'setup');
   sendUpdate(space, res);
 });
 
@@ -373,13 +502,15 @@ function endSession(space) {
     db.prepare('SELECT user_id FROM session_participants WHERE space_id = ?').all(space.id).map((r) => r.user_id),
   );
   for (const id of participantIds(space)) ids.add(id);
+  const lastLayout = snapshotLayout(db.prepare('SELECT * FROM tables WHERE space_id = ? ORDER BY id').all(space.id));
   db.transaction(() => {
     db.prepare('DELETE FROM tables WHERE space_id = ?').run(space.id);
     db.prepare('DELETE FROM session_participants WHERE space_id = ?').run(space.id);
     clearVotes(space.id);
     clearTimers(space.id);
     clearChat(space.id);
-    db.prepare("UPDATE spaces SET status = 'idle', opened_by = NULL, opened_at = NULL WHERE id = ?").run(space.id);
+    db.prepare("UPDATE spaces SET status = 'idle', opened_by = NULL, opened_at = NULL, last_layout = COALESCE(?, last_layout) WHERE id = ?")
+      .run(lastLayout, space.id);
   })();
   return [...ids];
 }
@@ -399,7 +530,7 @@ spacesRouter.patch('/:code', (req, res) => {
   if (req.body?.status !== 'idle') return res.status(400).json({ error: 'Only ending the session is supported.' });
   const participants = endSession(space);
   notify(space, participants, req.user.id,
-    `${req.user.username} ended today's session. Coming back tomorrow? Tap to sign up 🙋`);
+    `${req.user.username} ended today's session. Coming back tomorrow? Tap to sign up 🙋`, 'setup');
   sendUpdate(space, res);
 });
 
@@ -715,7 +846,7 @@ spacesRouter.delete('/:code', (req, res) => {
 });
 
 export function deleteSpace(space) {
-  broadcast(space.id, { deleted: true });
+  broadcast(space.id, { deleted: true }, true);
   db.prepare('DELETE FROM spaces WHERE id = ?').run(space.id);
 }
 
@@ -730,7 +861,7 @@ export function sweepExpired() {
   `).all(SESSION_TTL_HOURS);
   for (const s of stale) {
     const participants = endSession(s);
-    notify(s, participants, null, "Today's session wrapped up. Coming back tomorrow? Tap to sign up 🙋");
-    broadcast(s.id, getSpaceState(s.code));
+    notify(s, participants, null, "Today's session wrapped up. Coming back tomorrow? Tap to sign up 🙋", 'setup');
+    broadcast(s.id, getSpaceState(s.code), true);
   }
 }

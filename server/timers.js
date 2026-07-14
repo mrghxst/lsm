@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from './db.js';
 import { broadcast } from './events.js';
 import { getSpaceState } from './spaces.js';
-import { notifyUsers } from './push.js';
+import { notifySpaceUsers } from './push.js';
 import { colorFor } from './colors.js';
 
 // Shared focus timers: whoever starts a round invites the whole session,
@@ -63,7 +63,7 @@ export function sweepTimers() {
   for (const t of due) {
     db.prepare('UPDATE timers SET break_sent = 1 WHERE id = ?').run(t.id);
     const ids = db.prepare('SELECT user_id FROM timer_participants WHERE timer_id = ?').all(t.id).map((r) => r.user_id);
-    notifyUsers(ids, {
+    notifySpaceUsers(t.space_id, ids, 'timers', {
       title: t.name,
       body: `Break time! ${Math.round(t.duration_s / 60)} minutes of focus done 🎉`,
       url: `/s/${t.code}`,
@@ -138,7 +138,7 @@ timersRouter.post('/', (req, res) => {
   const invited = db.prepare('SELECT user_id FROM session_participants WHERE space_id = ?').all(space.id)
     .map((r) => r.user_id)
     .filter((id) => id !== req.user.id);
-  notifyUsers(invited, {
+  notifySpaceUsers(space.id, invited, 'timers', {
     title: space.name,
     body: `${req.user.username} started a ${minutes} min focus round — you have ${joinMin} min to join! ⏱️`,
     url: `/s/${space.code}`,

@@ -49,3 +49,20 @@ export function notifyUsers(userIds, payload) {
     });
   }
 }
+
+const NOTIFICATION_CATEGORIES = new Set(['setup', 'activity', 'votes', 'timers', 'chat']);
+
+export function notifySpaceUsers(spaceId, userIds, category, payload) {
+  notifyUsers(notificationRecipients(spaceId, userIds, category), payload);
+}
+
+export function notificationRecipients(spaceId, userIds, category) {
+  if (!NOTIFICATION_CATEGORIES.has(category)) throw new Error(`Unknown notification category: ${category}`);
+  const uniqueIds = [...new Set(userIds)];
+  if (uniqueIds.length === 0) return [];
+  const placeholders = uniqueIds.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT user_id FROM space_members
+    WHERE space_id = ? AND notify_${category} = 1 AND user_id IN (${placeholders})
+  `).all(spaceId, ...uniqueIds).map((row) => row.user_id);
+}

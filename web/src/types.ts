@@ -38,7 +38,21 @@ export interface SpaceInfo {
   openedBy: number | null;
   openedByName: string | null;
   openedAt: number | null;
+  lastSetup: { tableCount: number; totalSeats: number } | null;
   createdAt: number;
+}
+
+export interface NotificationPreferences {
+  setup: boolean;
+  activity: boolean;
+  votes: boolean;
+  timers: boolean;
+  chat: boolean;
+}
+
+export interface SpaceMembership {
+  archived: boolean;
+  notifications: NotificationPreferences;
 }
 
 // Everyone who ever opened the space (they had the code, so they're in the
@@ -149,4 +163,5 @@ export interface GroupSummary {
   totalSeats: number;
   peopleCount: number;
   freeSeats: number;
+  archived: boolean;
 }

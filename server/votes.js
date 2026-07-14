@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from './db.js';
 import { broadcast } from './events.js';
 import { getSpaceState } from './spaces.js';
-import { notifyUsers } from './push.js';
+import { notifySpaceUsers } from './push.js';
 import { colorFor } from './colors.js';
 
 // Orient Catering isn't ETH-run, so it has no Cookpit facility. -1 is a
@@ -108,7 +108,7 @@ export function sendLunchReminders() {
       LEFT JOIN vote_ballots b ON b.option_id = o.id
       WHERE o.vote_id = ? GROUP BY o.id ORDER BY n DESC, o.id LIMIT 1
     `).get(p.vote_id);
-    notifyUsers(recipients, {
+    notifySpaceUsers(p.space_id, recipients, 'votes', {
       title: p.name,
       body:
         leader && leader.n > 0
