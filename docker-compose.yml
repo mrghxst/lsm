@@ -1,7 +1,6 @@
 services:
   lsm:
-    # Built by .github/workflows/docker.yml on every push to main.
-    image: ghcr.io/michaelmrusch/lsm:latest
+    image: mrghxst/lsm:latest
     pull_policy: always
     restart: unless-stopped
     ports:
