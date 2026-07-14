@@ -8,6 +8,7 @@ import { notifyUsers } from './push.js';
 import { votesRouter, votesForState, clearVotes } from './votes.js';
 import { timersRouter, timerForState, clearTimers } from './timers.js';
 import { chatRouter, chatForState, clearChat } from './chat.js';
+import { zurichDate } from './dates.js';
 
 export const spacesRouter = Router();
 spacesRouter.use(requireAuth);
@@ -34,13 +35,6 @@ function addMember(spaceId, userId) {
 
 function addParticipant(spaceId, userId) {
   db.prepare('INSERT OR IGNORE INTO session_participants (space_id, user_id) VALUES (?, ?)').run(spaceId, userId);
-}
-
-// Calendar day at ETH (Europe/Zurich) as YYYY-MM-DD; offsetDays = 1 is
-// tomorrow. en-CA is the locale whose date format is ISO.
-function zurichDate(offsetDays = 0) {
-  const d = new Date(Date.now() + offsetDays * 24 * 3600 * 1000);
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(d);
 }
 
 function tomorrowPledges(spaceId) {

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "concurrently -n server,web -c blue,green \"cross-env PORT=3000 node server/index.js\" \"npm --prefix web run dev\"",
-    "build": "npm --prefix web run build"
+    "build": "npm --prefix web run build",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
