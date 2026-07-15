@@ -1229,6 +1229,73 @@ body {
   opacity: 0.55;
 }
 
+.admin-invite-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.archived-spaces summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.archived-list {
+  margin-top: 12px;
+}
+
+.settings-sheet {
+  max-width: 560px;
+}
+
+.preference-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  cursor: pointer;
+}
+
+.preference-row + .preference-row {
+  border-top: 1px solid var(--border);
+}
+
+.preference-name,
+.preference-hint {
+  display: block;
+}
+
+.preference-name {
+  font-weight: 650;
+}
+
+.preference-hint {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.preference-row input {
+  width: 21px;
+  height: 21px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.reuse-setup-card {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+}
+
+@media (max-width: 560px) {
+  .admin-invite-actions .btn {
+    padding-inline: 10px;
+  }
+}
+
 /* ---------- misc ---------- */
 
 .sheet-owner {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from './db.js';
 import { broadcast } from './events.js';
 import { getSpaceState } from './spaces.js';
-import { notifyUsers } from './push.js';
+import { notifySpaceUsers } from './push.js';
 import { colorFor } from './colors.js';
 
 // Room chat: a tiny session-scoped channel for the people actually at the
@@ -26,7 +26,9 @@ export function chatForState(spaceId) {
       body: m.body,
       createdAt: m.created_at,
     })),
-    muted: db.prepare('SELECT user_id FROM chat_mutes WHERE space_id = ?').all(spaceId).map((r) => r.user_id),
+    // Who hid the unread badge (chat-window switch only; separate from the
+    // chat push preference in space_members.notify_chat).
+    badgeHidden: db.prepare('SELECT user_id FROM chat_mutes WHERE space_id = ?').all(spaceId).map((r) => r.user_id),
   };
 }
 
@@ -80,12 +82,12 @@ chatRouter.post('/', (req, res) => {
     `).run(space.id, space.id, KEEP);
   })();
 
-  // Push to everyone with a seat today except the sender and the muted.
-  const muted = new Set(db.prepare('SELECT user_id FROM chat_mutes WHERE space_id = ?').all(space.id).map((r) => r.user_id));
+  // Push to everyone with a seat today except the sender; per-space chat
+  // preferences are applied by notifySpaceUsers.
   const recipients = db.prepare(`
     SELECT DISTINCT c.user_id FROM claims c JOIN tables t ON t.id = c.table_id WHERE t.space_id = ?
-  `).all(space.id).map((r) => r.user_id).filter((id) => id !== req.user.id && !muted.has(id));
-  notifyUsers(recipients, {
+  `).all(space.id).map((r) => r.user_id).filter((id) => id !== req.user.id);
+  notifySpaceUsers(space.id, recipients, 'chat', {
     title: space.name,
     body: `${req.user.username}: ${body.length > 120 ? `${body.slice(0, 119)}…` : body}`,
     url: `/s/${space.code}`,
@@ -94,13 +96,27 @@ chatRouter.post('/', (req, res) => {
   sendUpdate(space, res);
 });
 
-// Mute is personal and sticky: no pushes and (client-side) no unread badge,
-// until switched back on.
+// The bell: chat push notifications on/off. This is the same preference as the
+// "Room chat" toggle in space settings (both write notify_chat), so the two
+// always stay in sync. It no longer touches the unread badge — that is the
+// separate switch below.
 chatRouter.post('/mute', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
   if (typeof req.body?.muted !== 'boolean') return res.status(400).json({ error: 'muted must be true or false.' });
-  if (req.body.muted) {
+  db.prepare('UPDATE space_members SET notify_chat = ? WHERE space_id = ? AND user_id = ?')
+    .run(req.body.muted ? 0 : 1, space.id, req.user.id);
+  sendUpdate(space, res);
+});
+
+// The unread badge: a chat-window-only switch (deliberately not in settings)
+// that hides the count on the chat button without changing whether you still
+// receive push notifications.
+chatRouter.post('/badge', (req, res) => {
+  const space = requireOpenSpace(req, res);
+  if (!space) return;
+  if (typeof req.body?.hidden !== 'boolean') return res.status(400).json({ error: 'hidden must be true or false.' });
+  if (req.body.hidden) {
     db.prepare('INSERT OR IGNORE INTO chat_mutes (space_id, user_id) VALUES (?, ?)').run(space.id, req.user.id);
   } else {
     db.prepare('DELETE FROM chat_mutes WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);

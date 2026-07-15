@@ -38,7 +38,21 @@ export interface SpaceInfo {
   openedBy: number | null;
   openedByName: string | null;
   openedAt: number | null;
+  lastSetup: { tableCount: number; totalSeats: number } | null;
   createdAt: number;
+}
+
+export interface NotificationPreferences {
+  setup: boolean;
+  activity: boolean;
+  votes: boolean;
+  timers: boolean;
+  chat: boolean;
+}
+
+export interface SpaceMembership {
+  archived: boolean;
+  notifications: NotificationPreferences;
 }
 
 // Everyone who ever opened the space (they had the code, so they're in the
@@ -106,11 +120,13 @@ export interface ChatMessage {
   createdAt: number;
 }
 
-// Session-scoped room chat. muted lists users who opted out of pushes and
-// the unread badge; the log is wiped when the session ends.
+// Session-scoped room chat. badgeHidden lists users who turned off the unread
+// badge — a chat-window-only switch that does not affect push notifications
+// (those follow the space's chat notification preference). The log is wiped
+// when the session ends.
 export interface ChatState {
   messages: ChatMessage[];
-  muted: number[];
+  badgeHidden: number[];
 }
 
 export interface Meal {
@@ -149,4 +165,5 @@ export interface GroupSummary {
   totalSeats: number;
   peopleCount: number;
   freeSeats: number;
+  archived: boolean;
 }

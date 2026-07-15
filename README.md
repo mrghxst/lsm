@@ -11,6 +11,12 @@ keeps the group, its code and its members for tomorrow.
 
 ## Features
 
+- **One-tap repeat setup** - ending a session remembers the active table layout, capacities, and positions, so the next opener can restore yesterday's setup immediately
+- **Live home dashboard** - group status and seat availability refresh instantly over Server-Sent Events
+- **Membership controls** - archive or leave spaces; owners can rename them and transfer ownership
+- **Per-space notifications** - separate switches for daily setup, room activity, votes, focus timers, and chat
+- **Shareable registration links** - admins can copy or share invite URLs that prefill the one-time code and preserve an optional destination
+
 - **No-friction accounts** — name + PIN + a personal color; registering needs a one-time invite code from an admin (the first account and `ADMIN_USERNAME` bootstrap without one)
 - **Live sync** — every phone updates instantly via Server-Sent Events
 - **Top-down room view** — tables are drawn as split rectangles, one segment per seat, filled with each person's color (outlined = coming, solid = arrived). Each seat labels itself with the fullest form that fits on one line without ever changing the font size — full name, else the first name, else the first three or two letters — so a roomy two-seater reads "Andrea" where a packed four-seater reads "And"
@@ -24,7 +30,7 @@ keeps the group, its code and its members for tomorrow.
 - **Tomorrow pledges** — the last one out is prompted to end the session; everyone who took part gets a push asking "coming back tomorrow?" — one tap signals intent (no time needed), so the first person there next morning knows what table size to grab, and fellow pledgers get a small motivational nudge
 - **Votes** — WhatsApp-style polls per session: anyone starts one with a question and as many options as needed (a yes/no is just a two-option poll), everyone can add further options, results fill live progress bars, and ballots can be changed or retracted anytime. A one-tap **"Where to eat lunch?"** button starts a vote preloaded with the ETH Zentrum spots (Clausiusbar, Archimedes, Polysnack, Obere/Untere Mensa, Orient Catering) — ℹ️ shows today's live menus straight from ETH's gastronomy API (plus Orient Catering's Dürüm card), a mensa that is known closed today shows 🌙 instead, each person may suggest at most one extra place per day, and non-voters get one reminder push at 11:00. Dish names carrying a photo show a 📷 you can tap to peek at how it looks — hidden by default so the menu stays scannable. A slim chip shows just the current leader; details live in an overlay
 - **Focus timer** — anyone starts a shared 45 / 60 / 90 min (or custom) round; everyone else in the session gets a push invite and the first 10% of the round to join. A circular ring drains around the countdown, everyone who joined is shown by name to pull the rest in, and when the round rings all participants get a "break time" push. One round at a time per space; the break card lingers ~10 min or until dismissed
-- **Room chat** — a small chat button pinned bottom-right (like a support widget, hidden until tapped) opens a minimal message panel scoped to the people with a seat **today**: no need to spam the big WhatsApp group. Everyone in the space can read; writing needs a seat. Unread messages show as a count on the button; the 🔔/🔕 toggle in the panel mutes both the push notifications and the badge. The log is wiped with the session
+- **Room chat** — a small chat button pinned bottom-right (like a support widget, hidden until tapped) opens a minimal message panel scoped to the people with a seat **today**: no need to spam the big WhatsApp group. Everyone in the space can read; writing needs a seat. Unread messages show as a count on the button. The panel has two independent switches: 🔔/🔕 for push notifications (kept in sync with the Room chat toggle in space settings) and 🔴/⚪ for the unread badge (chat-window only, so you can silence the count without giving up notifications, or vice-versa). The log is wiped with the session
 
 ## Local development
 
@@ -86,10 +92,15 @@ POST   /api/auth/logout
 GET    /api/auth/me
 POST   /api/spaces                             {name, tableCount, defaultCapacity} → {code} (create group + first session)
 GET    /api/me/spaces                          your groups with live stats
+GET    /api/me/events                          SSE refresh stream for the home dashboard
 GET    /api/spaces/:code                       full space state (also joins you to the group)
 GET    /api/spaces/:code/events                SSE live updates
 POST   /api/spaces/:code/sessions              {tableCount, defaultCapacity} set up today's session (notifies members)
 PATCH  /api/spaces/:code                       {status: 'idle'} end session (opener/owner, or anyone once all seats are free)
+GET    /api/spaces/:code/membership            your archive + notification settings
+PATCH  /api/spaces/:code/membership            {archived?, notifications?}
+DELETE /api/spaces/:code/membership            leave the space (non-owner, no active seat)
+PATCH  /api/spaces/:code/settings              {name?, ownerId?} (owner/admin)
 POST   /api/spaces/:code/tomorrow              pledge "I'll be back tomorrow" (no time needed)
 DELETE /api/spaces/:code/tomorrow              withdraw the pledge
 DELETE /api/spaces/:code                       delete the group forever (owner/admin)
@@ -111,7 +122,8 @@ POST   /api/spaces/:code/timers/:id/join       join — open for the first 10% o
 DELETE /api/spaces/:code/timers/:id/join       step out (last one out stops the round)
 DELETE /api/spaces/:code/timers/:id            stop a round (starter/manager) or dismiss a finished one
 POST   /api/spaces/:code/chat                  {text} message the room (needs a seat today)
-POST   /api/spaces/:code/chat/mute             {muted} toggle chat pushes + unread badge for yourself
+POST   /api/spaces/:code/chat/mute             {muted} toggle chat push notifications (mirrors the Settings toggle)
+POST   /api/spaces/:code/chat/badge            {hidden} show/hide your unread badge (chat window only)
 GET    /api/menus                              today's menus of the lunch spots, incl. per-dish photo URLs (cached)
 GET    /api/push/key                           VAPID public key
 POST   /api/push/subscribe                     {subscription} enable notifications
