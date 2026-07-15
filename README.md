@@ -70,7 +70,7 @@ flowchart LR
     </td>
     <td width="50%" valign="top">
       <h3>⏱️ Focus together</h3>
-      Start a shared 45, 60, 90, or custom-minute focus round. Others can join during the opening window and every participant gets the break alert.
+      Start a shared 45, 60, 90, custom-minute round — or one that ends at a set time, so breaks can be planned. Others can join during the opening window and every participant gets the break alert.
     </td>
   </tr>
   <tr>
@@ -114,6 +114,8 @@ flowchart LR
 - Space codes and share links are permanent, even though the daily room is reset.
 - The home screen shows people counts and free-seat availability for every active space.
 - Tomorrow pledges give the next opener an early estimate of how many seats will be needed.
+- Admins can book a seat in another member's name, or reserve for a guest attributed to any member.
+- Colors are unique within a space: if yours is already taken when you join, you're given a random free one just for that space.
 
 ### Collaboration
 
@@ -252,6 +254,7 @@ POST   /api/auth/session                       Register or sign in
 POST   /api/auth/logout                        End the current session
 GET    /api/auth/me                            Read the signed-in account
 GET    /api/me/spaces                          List the user's spaces with current stats
+GET    /api/me/events                          SSE refresh stream for the home dashboard
 ```
 
 ### Spaces and sessions
@@ -265,6 +268,10 @@ PATCH  /api/spaces/:code                       End today's session
 DELETE /api/spaces/:code                       Permanently delete the group
 POST   /api/spaces/:code/tomorrow              Pledge to return tomorrow
 DELETE /api/spaces/:code/tomorrow              Withdraw tomorrow's pledge
+GET    /api/spaces/:code/membership            Read your archive + notification settings
+PATCH  /api/spaces/:code/membership            Update archive flag or notification switches
+DELETE /api/spaces/:code/membership            Leave the space (non-owner, no active seat)
+PATCH  /api/spaces/:code/settings              Rename or transfer ownership (owner/admin)
 ```
 
 ### Tables and seats
@@ -291,7 +298,8 @@ POST   /api/spaces/:code/timers/:id/join       Join a focus round
 DELETE /api/spaces/:code/timers/:id/join       Leave a focus round
 DELETE /api/spaces/:code/timers/:id            Stop or dismiss a focus round
 POST   /api/spaces/:code/chat                  Send a room message
-POST   /api/spaces/:code/chat/mute             Toggle chat notifications and unread badge
+POST   /api/spaces/:code/chat/mute             Toggle chat push notifications (mirrors Settings)
+POST   /api/spaces/:code/chat/badge            Show or hide your unread badge (chat window only)
 GET    /api/menus                              Read today's cached menus
 ```
 

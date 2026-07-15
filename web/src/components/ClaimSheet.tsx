@@ -3,6 +3,7 @@ import type { SpaceState, Table } from '../types';
 import { claimColor, etaLabel, formatClock, formatDuration } from '../util';
 import { useNowMinute } from '../useNow';
 import { EtaPicker } from './EtaPicker';
+import { Sheet } from './Sheet';
 import { Stepper } from './Stepper';
 
 interface Actions {
@@ -220,16 +221,16 @@ export function ClaimSheet({
   );
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
-        <div className="sheet-head">
-          <h2>Table {table.label.replace(/^T/, '')}</h2>
-          <span className="table-count">
-            {table.stolen ? 'taken by others' : table.released ? 'given back' : `${table.claims.length}/${table.capacity} seats`}
-          </span>
-        </div>
-        <div className="stack">
+    <Sheet
+      title={`Table ${table.label.replace(/^T/, '')}`}
+      meta={
+        <span className="table-count">
+          {table.stolen ? 'taken by others' : table.released ? 'given back' : `${table.claims.length}/${table.capacity} seats`}
+        </span>
+      }
+      onClose={onClose}
+    >
+      <div className="stack">
           {!guestMode && !bookMode && body}
           {guestForm}
           {bookForm}
@@ -328,7 +329,6 @@ export function ClaimSheet({
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </Sheet>
   );
 }
