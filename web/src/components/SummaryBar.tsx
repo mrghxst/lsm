@@ -24,6 +24,30 @@ export function SummaryBar({ state, onAddTable }: { state: SpaceState; onAddTabl
 
   const toggle = (key: DetailKey) => setDetail((d) => (d === key ? null : key));
 
+  // Same row shape as the People card in the sidebar — the two show the same
+  // thing and shouldn't look like two different lists.
+  const personRow = (p: (typeof rows)[number], meta: string) => {
+    const color = claimColor(p);
+    const name = p.guestName ?? p.username;
+    const avatar =
+      p.status === 'arrived'
+        ? { background: color, color: '#fff' }
+        : { boxShadow: `inset 0 0 0 2px ${color}`, color };
+    return (
+      <li key={p.id}>
+        <span className="person-avatar" style={avatar}>
+          {name.trim().charAt(0).toUpperCase()}
+        </span>
+        <span className="person-name">
+          {name}
+          {p.guestName && <span className="occupant-sub"> · friend of {p.username}</span>}
+        </span>
+        <span className="person-table">{p.tableLabel.replace(/^Table\s+/i, 'T')}</span>
+        <span className="person-eta">{meta}</span>
+      </li>
+    );
+  };
+
   return (
     <div className="summary">
       <div className="stats">
@@ -48,36 +72,16 @@ export function SummaryBar({ state, onAddTable }: { state: SpaceState; onAddTabl
       {detail === 'here' && (
         <ul className="people-list summary-detail card">
           {arrived.length === 0 && <li className="hint">Nobody has arrived yet.</li>}
-          {arrived.map((p) => (
-            <li key={p.id}>
-              <span className="person-dot" style={{ background: claimColor(p) }} />
-              <span className="person-name">
-                {p.guestName ?? p.username}
-                {p.guestName && <span className="occupant-sub"> · friend of {p.username}</span>}
-              </span>
-              <span className="person-table">{p.tableLabel}</span>
-              <span className="person-eta">
-                {p.arrivedAt ? `since ${formatClock(p.arrivedAt)} · ${formatDuration(p.arrivedAt, now)}` : 'here'}
-              </span>
-            </li>
-          ))}
+          {arrived.map((p) =>
+            personRow(p, p.arrivedAt ? `since ${formatClock(p.arrivedAt)} · ${formatDuration(p.arrivedAt, now)}` : 'here'),
+          )}
         </ul>
       )}
 
       {detail === 'coming' && (
         <ul className="people-list summary-detail card">
           {coming.length === 0 && <li className="hint">Nobody is on the way right now.</li>}
-          {coming.map((p) => (
-            <li key={p.id}>
-              <span className="person-dot" style={{ background: claimColor(p) }} />
-              <span className="person-name">
-                {p.guestName ?? p.username}
-                {p.guestName && <span className="occupant-sub"> · friend of {p.username}</span>}
-              </span>
-              <span className="person-table">{p.tableLabel}</span>
-              <span className="person-eta">{etaLabel(p.eta)}</span>
-            </li>
-          ))}
+          {coming.map((p) => personRow(p, etaLabel(p.eta)))}
         </ul>
       )}
 
@@ -86,6 +90,7 @@ export function SummaryBar({ state, onAddTable }: { state: SpaceState; onAddTabl
           {freeByTable.length === 0 && <li className="hint">Every seat is taken.</li>}
           {freeByTable.map((t) => (
             <li key={t.id}>
+              <span className="person-avatar empty">{t.free}</span>
               <span className="person-name">{t.label}</span>
               <span className="person-eta">
                 {t.free} of {t.capacity} {t.capacity === 1 ? 'seat' : 'seats'} free

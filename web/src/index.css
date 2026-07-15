@@ -624,11 +624,27 @@ body {
   color: var(--accent);
 }
 
+/* The open count reads as a list hanging off its button, not a banner: on a
+   wide room column a full-bleed card would strand the name at one end and
+   the arrival time at the other with a void between them. */
 .summary-detail {
   margin: 0;
-  padding: 12px 16px;
-  max-height: 210px;
+  padding: 6px 14px;
+  max-width: 620px;
+  max-height: 240px;
   overflow-y: auto;
+  gap: 0;
+}
+
+/* Rows get their own height and a hairline instead of being packed by gap —
+   at this width the separator is what keeps them scannable. */
+.summary-detail li {
+  min-height: 44px;
+  padding: 4px 0;
+}
+
+.summary-detail li + li {
+  border-top: 1px solid var(--border);
 }
 
 .stat-value {
@@ -660,8 +676,9 @@ body {
 
 /* ---------- room canvas ---------- */
 
-/* The phone view stays square for a predictable touch target. The desktop
-   override below expands this canvas to the exported wide room layout. */
+/* The room is square on every device: table positions are fractions of the
+   canvas, so differing aspect ratios would make layouts that don't overlap
+   on one screen overlap on another. */
 .room {
   position: relative;
   width: 100%;
@@ -1048,6 +1065,13 @@ body {
   font-size: 11px;
   font-weight: 700;
   flex: 0 0 auto;
+}
+
+/* A free-seat count wears the same disc as a person, drawn as an empty seat
+   so the free list lines up with the two lists of people beside it. */
+.person-avatar.empty {
+  border: 1.5px dashed var(--border-2);
+  color: var(--faint);
 }
 
 .person-dot {
@@ -1501,17 +1525,17 @@ body {
     margin-top: 0;
   }
 
-  /* Chat sits at the foot of the column, level with the room's bottom edge. */
+  /* Sidebar reads top-to-bottom People · Timer · Votes, then the chat dock
+     and the destructive End button anchored to the foot of the column. Only
+     the FIRST of that pair may take the auto margin — give it to both and
+     flexbox splits the slack between them, leaving chat stranded mid-column.
+     DOM order already matches, so the phone's single flow keeps End last. */
   .space-side .chat-dock {
     margin-top: auto;
   }
 
-  /* Sidebar reads top-to-bottom People · Timer · Votes, with the destructive
-     End button pushed to the very bottom (level with the room) by the auto
-     margin. DOM order already matches, so the phone's single-column flow
-     keeps End last too. */
   .space-side .end-space {
-    margin-top: auto;
+    margin-top: 0;
   }
 
   .room-wrap {
@@ -1522,14 +1546,17 @@ body {
   }
 
   .space-layout .room {
-    /* The exported desktop design is canvas-first: use the whole available
-       work area. Phones keep the square room below this breakpoint. */
+    /* Height-driven on desktop, but the same square shape as mobile. The
+       canvas MUST stay square: a table's size comes from the room's width
+       (its cells are a % of it) while its position comes from the room's
+       height, so any other ratio pulls those two units apart — tables stop
+       landing flush against each other and drift off the grid lines. */
     height: 100%;
-    width: 100%;
-    aspect-ratio: auto;
-    align-self: stretch;
+    width: auto;
+    aspect-ratio: 1 / 1;
+    max-width: 100%;
+    align-self: center;
   }
-
 }
 
 /* ---------- github footer ---------- */
