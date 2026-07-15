@@ -129,9 +129,12 @@ test('joining a space with a color already in use gets a distinct one', async ()
   const sid = Number(db.prepare("INSERT INTO spaces (code, name, owner_id, status) VALUES ('CLR234', 'Colors', ?, 'idle')").run(first).lastInsertRowid);
   db.prepare('INSERT INTO space_members (space_id, user_id) VALUES (?, ?)').run(sid, first); // owner already in, keeps red
 
-  // second collides with first's red -> reassigned; third's blue is free -> kept.
-  await fetch(`${base}/api/spaces/CLR234`, { headers: { Cookie: c2 } });
+  // Third (unique blue) joins BEFORE second, so only red is taken when it
+  // arrives and it must keep its blue. Joining second first would let its
+  // random reassignment land on blue, and then third would legitimately be
+  // moved off it too — a 1-in-9 flake rather than a real failure.
   await fetch(`${base}/api/spaces/CLR234`, { headers: { Cookie: c3 } });
+  await fetch(`${base}/api/spaces/CLR234`, { headers: { Cookie: c2 } });
   const state = await (await fetch(`${base}/api/spaces/CLR234`, { headers: { Cookie: c1 } })).json();
   const colors = Object.fromEntries(state.members.map((m) => [m.username, m.color]));
 
