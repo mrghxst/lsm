@@ -176,6 +176,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- Legacy (kept for the notify_chat backfill migration below): once held
+-- chat mute / hidden-badge flags; nothing writes or reads it anymore.
 CREATE TABLE IF NOT EXISTS chat_mutes (
   space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
