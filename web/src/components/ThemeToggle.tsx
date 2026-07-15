@@ -3,9 +3,16 @@ import { applyTheme, resolveTheme, type Theme } from '../theme';
 
 // index.html already put the right class on <html> before first paint; this
 // only has to stay in step with it and flip it on tap.
-export function ThemeToggle({ className = 'icon-btn' }: { className?: string }) {
+export function ThemeToggle({
+  className = 'icon-btn',
+  withLabel = false,
+}: {
+  className?: string;
+  withLabel?: boolean;
+}) {
   const [theme, setTheme] = useState<Theme>(resolveTheme);
   const next: Theme = theme === 'dark' ? 'light' : 'dark';
+  const glyph = theme === 'dark' ? '☀️' : '🌙';
   return (
     <button
       className={className}
@@ -16,7 +23,14 @@ export function ThemeToggle({ className = 'icon-btn' }: { className?: string }) 
         setTheme(next);
       }}
     >
-      {theme === 'dark' ? '☀️' : '🌙'}
+      {withLabel ? (
+        <>
+          <span className="bar-btn-glyph">{glyph}</span>
+          <span className="bar-btn-label">{next === 'dark' ? 'Dark mode' : 'Light mode'}</span>
+        </>
+      ) : (
+        glyph
+      )}
     </button>
   );
 }

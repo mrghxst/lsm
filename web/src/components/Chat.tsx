@@ -56,10 +56,14 @@ export function RoomChat({
   }
 
   if (!open) {
+    const last = messages[messages.length - 1];
     return (
-      <button className="chat-fab" aria-label="Room chat" onClick={() => setOpen(true)}>
-        💬
-        {unread > 0 && <span className="chat-badge">{unread > 9 ? '9+' : unread}</span>}
+      <button className="card chat-dock" onClick={() => setOpen(true)}>
+        <span className="chat-dock-label">Room chat</span>
+        <span className="chat-dock-preview">
+          {last ? `${last.userId === userId ? 'You' : last.username}: ${last.body}` : 'Say hi to the room 👋'}
+        </span>
+        {unread > 0 && <span className="chat-dock-badge">{unread > 9 ? '9+' : unread}</span>}
       </button>
     );
   }

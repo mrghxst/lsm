@@ -704,6 +704,7 @@ export function Room({
           ⤢
         </button>
       </div>
+      <span className="room-hint">Drag tables to move · scroll to zoom · tap a seat to claim it</span>
     </div>
   );
 }

@@ -194,34 +194,40 @@ export function Space() {
   }
 
   const header = (
-    <header className="top-bar">
-      <Link to="/" className="icon-btn" aria-label="Back">
-        ←
+    <header className="app-bar">
+      <Link to="/" className="app-bar-mark" aria-label="Back to your spaces" title="Back to your spaces">
+        {space.name.trim().charAt(0).toUpperCase() || '·'}
       </Link>
-      <div className="top-title-group">
-        <h1 className="top-title">{space.name}</h1>
-        <span className="top-sub">
-          <span className="top-code">{space.code}</span>
-          <span className={`live-dot ${connected ? 'on' : 'off'}`} title={connected ? 'Live' : 'Reconnecting…'} />
-          {space.status === 'open' && space.openedByName && (
-            <span className="top-by">set up by {space.openedByName}</span>
-          )}
+      <div className="app-bar-id">
+        <h1 className="app-bar-name">{space.name}</h1>
+        <span className="app-bar-code">{space.code}</span>
+        <span className={`app-bar-live${connected ? '' : ' off'}`}>
+          <span className={`live-dot ${connected ? 'on' : 'off'}`} />
+          <span>
+            {connected ? 'Live' : 'Reconnecting…'}
+            {space.status === 'open' && space.openedByName ? ` · set up by ${space.openedByName}` : ''}
+          </span>
         </span>
       </div>
-      <button
-        className={`icon-btn${pushOn ? ' icon-btn-active' : ''}`}
-        onClick={() => void toggleNotifications()}
-        aria-label="Notifications"
-      >
-        {pushOn ? '🔔' : '🔕'}
-      </button>
-      <button className="icon-btn" onClick={() => void share()} aria-label="Share">
-        📤
-      </button>
-      <button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Space settings">
-        &#9881;
-      </button>
-      <ThemeToggle />
+      <div className="app-bar-actions">
+        <button className="bar-btn" onClick={() => void share()} aria-label="Share">
+          <span className="bar-btn-glyph">📤</span>
+          <span className="bar-btn-label">Share</span>
+        </button>
+        <button
+          className={`bar-btn${pushOn ? ' on' : ''}`}
+          onClick={() => void toggleNotifications()}
+          aria-label="Notifications"
+        >
+          <span className="bar-btn-glyph">{pushOn ? '🔔' : '🔕'}</span>
+          <span className="bar-btn-label">{pushOn ? 'Notifications on' : 'Notifications off'}</span>
+        </button>
+        <button className="bar-btn" onClick={() => setSettingsOpen(true)} aria-label="Space settings">
+          <span className="bar-btn-glyph">⚙</span>
+          <span className="bar-btn-label">Settings</span>
+        </button>
+        <ThemeToggle className="bar-btn" withLabel />
+      </div>
     </header>
   );
 
@@ -247,8 +253,9 @@ export function Space() {
 
   if (space.status === 'idle') {
     return (
-      <div className="app">
+      <>
         {header}
+        <div className="app">
         <div className="stack idle-screen">
           <div className="card stack idle-card">
             <div className="hero-icon">🌅</div>
@@ -325,7 +332,8 @@ export function Space() {
         </div>
         {settings}
         {toast && <div className="toast">{toast}</div>}
-      </div>
+        </div>
+      </>
     );
   }
 
@@ -415,23 +423,17 @@ export function Space() {
   const hasSeat = tables.some((t) => t.claims.some((c) => c.userId === user.id && !c.guestName));
 
   return (
-    <div className="app space-layout">
+    <>
+      {header}
+      <div className="app space-layout">
       <div className="space-main">
-        {header}
-
-        <SummaryBar state={state} />
+        <SummaryBar
+          state={state}
+          onAddTable={() => void mutate(`/api/spaces/${code}/tables`, { method: 'POST' }, { close: false })}
+        />
 
         <div className="room-wrap">
           <Room tables={tables} currentUserId={user.id} onTap={(id, seat) => setSelected({ id, seat })} onMove={actions.move} />
-        </div>
-        <div className="room-toolbar">
-          <p className="hint room-hint">Tap a table to set it up — drag to move it, pinch or scroll to zoom.</p>
-          <button
-            className="btn btn-secondary btn-compact"
-            onClick={() => void mutate(`/api/spaces/${code}/tables`, { method: 'POST' }, { close: false })}
-          >
-            ➕ Add table
-          </button>
         </div>
       </div>
 
@@ -440,7 +442,21 @@ export function Space() {
 
         <FocusTimerCard timer={state.timer} userId={user.id} canManage={canManageSession} actions={timerActions} />
 
-        <VotesBar votes={state.votes} onOpen={() => setVotesOpen(true)} />
+        <VotesBar
+          votes={state.votes}
+          userId={user.id}
+          onOpen={() => setVotesOpen(true)}
+          onCast={voteActions.castBallot}
+        />
+
+        <RoomChat
+          chat={state.chat}
+          userId={user.id}
+          code={code}
+          canChat={hasSeat}
+          notifyChat={membership?.notifications.chat ?? true}
+          actions={chatActions}
+        />
 
         {canManageSession && (
           <button
@@ -479,11 +495,10 @@ export function Space() {
         />
       )}
 
-      <RoomChat chat={state.chat} userId={user.id} code={code} canChat={hasSeat} notifyChat={membership?.notifications.chat ?? true} actions={chatActions} />
-
       {settings}
 
       {toast && <div className="toast">{toast}</div>}
-    </div>
+      </div>
+    </>
   );
 }

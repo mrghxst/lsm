@@ -115,10 +115,165 @@ body {
 }
 
 .app {
-  max-width: 480px;
+  max-width: 520px;
   margin: 0 auto;
   padding: 16px 16px calc(48px + env(safe-area-inset-bottom));
   min-height: 100dvh;
+}
+
+/* ---------- app bar ---------- */
+
+/* Full-bleed chrome above the page: the room and the sidebar scroll under it,
+   so the space's identity and its controls never move. */
+.app-bar {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-bar-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+.app-bar-id {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-bar-name {
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The share code is the thing people read out loud — box it so it reads as a
+   value rather than prose, and keep the digits from dancing. */
+.app-bar-code {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.app-bar-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--green);
+}
+
+.app-bar-live.off {
+  color: var(--amber);
+}
+
+.app-bar-live span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-bar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.bar-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.bar-btn:hover {
+  color: var(--text);
+  background: var(--card-2);
+}
+
+/* An on-state worth noticing: pushes are the one setting people forget. */
+.bar-btn.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Below the breakpoint the labels drop and the buttons collapse to their
+   glyphs, so the bar still fits a phone. */
+.bar-btn-label {
+  display: none;
+}
+
+@media (min-width: 700px) {
+  .app-bar {
+    padding: 0 20px;
+  }
+
+  .bar-btn-label {
+    display: inline;
+  }
+
+  .bar-btn-glyph {
+    display: none;
+  }
+}
+
+@media (max-width: 699px) {
+  .bar-btn {
+    padding: 0;
+    width: 36px;
+    font-size: 15px;
+  }
+
+  /* A phone bar can't hold name + code + status next to four buttons — the
+     name is the one you need to know you're in the right room, so the code
+     (still on the Share sheet) and the status wording give way to it. The
+     live dot stays: it's 7px and it's the thing that tells you the room is
+     still updating. */
+  .app-bar-code,
+  .app-bar-live span:last-child {
+    display: none;
+  }
 }
 
 .screen-center {
@@ -356,41 +511,14 @@ body {
   background: var(--card-2);
 }
 
-.top-title-group {
+/* Plain page title, for the secondary pages (new space, admin) that keep the
+   simple back-arrow bar rather than the space's full app bar. */
+.top-title {
   flex: 1;
   min-width: 0;
-}
-
-.top-title {
   font-size: 17px;
   font-weight: 600;
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.top-sub {
-  font-size: 12.5px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 2px;
-}
-
-/* The share code is the thing people read out loud — box it so it reads as
-   a value rather than prose, and keep the digits from dancing. */
-.top-code {
-  letter-spacing: 0.12em;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1px 7px;
-  font-variant-numeric: tabular-nums;
-  flex: 0 0 auto;
-}
-
-.top-by {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -424,16 +552,22 @@ body {
 }
 
 .stats {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr 1.2fr;
+  display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
+.stats-gap {
+  flex: 1;
+}
+
+/* Count and label sit side by side, so the row reads as a sentence of
+   numbers rather than three stacked tiles. */
 .stat {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
+  gap: 8px;
 }
 
 .stat-btn {
@@ -441,10 +575,29 @@ body {
   border: 1px solid var(--border);
   font-family: inherit;
   color: inherit;
-  padding: 7px 2px;
+  padding: 8px 14px;
   border-radius: var(--radius-control);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.add-table-btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.add-table-btn:hover {
+  background: var(--card-2);
 }
 
 .stat-btn:hover {
@@ -468,7 +621,7 @@ body {
 }
 
 .stat-value {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
@@ -491,6 +644,7 @@ body {
 .stat-label {
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 /* ---------- room canvas ---------- */
@@ -546,24 +700,23 @@ body {
   top: 50%;
   z-index: 6;
   writing-mode: vertical-rl;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  opacity: 0.7;
+  letter-spacing: 0.2em;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
 }
 
 .room-wall-left {
-  left: 8px;
+  left: 10px;
   transform: translateY(-50%) rotate(180deg);
 }
 
 .room-wall-right {
-  right: 8px;
+  right: 10px;
   transform: translateY(-50%);
 }
 
@@ -582,30 +735,41 @@ body {
   background: color-mix(in srgb, var(--red) 12%, transparent);
 }
 
+/* One joined control, hairline-divided, rather than three floating keys. */
 .zoom-controls {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
+  right: 12px;
+  bottom: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  overflow: hidden;
+  box-shadow: var(--table-shadow);
   z-index: 10;
 }
 
 .zoom-btn {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 17px;
   background: var(--card);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  color: var(--muted);
+  border: none;
   cursor: pointer;
-  opacity: 0.9;
+}
+
+.zoom-btn + .zoom-btn {
+  border-top: 1px solid var(--border);
+}
+
+.zoom-btn:hover {
+  background: var(--card-2);
+  color: var(--text);
 }
 
 .rtable {
@@ -800,8 +964,17 @@ body {
   text-underline-offset: 2px;
 }
 
+/* Sits on the canvas itself — the instructions belong where the gesture is. */
 .room-hint {
-  margin: 8px 2px 0;
+  position: absolute;
+  left: 14px;
+  bottom: 16px;
+  color: var(--faint);
+  font-size: 12px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 6;
+  padding-right: 60px;
 }
 
 /* ---------- people list ---------- */
@@ -810,9 +983,32 @@ body {
   margin-top: 14px;
 }
 
+/* Shared sidebar-card header: quiet uppercase label, count pushed right. */
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.card-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.card-count {
+  font-size: 12px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
 .people-list {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -823,7 +1019,25 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 15px;
+  font-size: 14px;
+}
+
+/* Whoever isn't in the room yet sits back a little. */
+.people-list li.coming {
+  opacity: 0.8;
+}
+
+.person-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex: 0 0 auto;
 }
 
 .person-dot {
@@ -842,6 +1056,8 @@ body {
 
 .person-name {
   font-weight: 600;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -859,6 +1075,8 @@ body {
 .person-eta {
   margin-left: auto;
   color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
 }
 
@@ -1158,19 +1376,7 @@ body {
   font-size: 14px;
 }
 
-/* ---------- room toolbar / occupants ---------- */
 
-.room-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.room-toolbar .room-hint {
-  flex: 1;
-  margin: 0 2px;
-}
 
 .btn-compact {
   width: auto;
@@ -1250,12 +1456,16 @@ body {
 
 @media (min-width: 1000px) {
   .app.space-layout {
-    max-width: 1280px;
-    height: 100dvh;
-    padding: 20px 24px;
+    max-width: 1440px;
+    /* The app bar is out of the grid, so the page owns exactly what's left.
+       .app's own min-height:100dvh would otherwise win over this height and
+       push the room's bottom edge off-screen. */
+    height: calc(100dvh - 60px);
+    min-height: 0;
+    padding: 20px 24px 24px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    column-gap: 24px;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    column-gap: 20px;
     overflow: hidden;
   }
 
@@ -1264,20 +1474,26 @@ body {
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+    gap: 14px;
   }
 
   .space-side {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
     min-height: 0;
     overflow-y: auto;
   }
 
   .space-side .people,
-  .space-side .vote-bar,
+  .space-side .vote-card,
   .space-side .timer-card {
     margin-top: 0;
+  }
+
+  /* Chat sits at the foot of the column, level with the room's bottom edge. */
+  .space-side .chat-dock {
+    margin-top: auto;
   }
 
   /* Sidebar reads top-to-bottom People · Timer · Votes, with the destructive
@@ -1305,10 +1521,7 @@ body {
     align-self: center;
   }
 
-  .space-layout .room-toolbar {
-    margin-top: 12px;
-  }
-}
+  .space-layout }
 
 /* ---------- github footer ---------- */
 
@@ -1447,9 +1660,6 @@ body {
   gap: 10px;
 }
 
-.icon-btn-active {
-  border-color: var(--accent);
-}
 
 .end-space {
   margin-top: 20px;
@@ -1479,15 +1689,7 @@ body {
   margin-top: 12px;
 }
 
-.timer-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 
-.timer-head .section-title {
-  flex: 1;
-}
 
 .timer-hint {
   margin: 0;
@@ -1521,12 +1723,60 @@ body {
   color: inherit;
 }
 
-/* The ring drains clockwise as the round runs down; the number in the
-   middle is the source of truth, the ring is the glanceable version. */
+/* A running round is a strip, not a poster: ring on the left, the count and
+   who's in on the right, so it costs the sidebar ~90px instead of ~300px. */
+.timer-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.timer-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.timer-time-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 1px 0;
+}
+
+.timer-of {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.timer-stop {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.timer-stop:hover {
+  background: var(--card-2);
+  color: var(--red);
+}
+
+/* The ring drains clockwise as the round runs down; the number beside it is
+   the source of truth, the ring is the glanceable version. */
 .timer-ring-wrap {
   position: relative;
-  width: 172px;
-  margin: 2px auto;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
 }
 
 .timer-ring {
@@ -1537,13 +1787,13 @@ body {
 .timer-ring-track {
   fill: none;
   stroke: var(--card-2);
-  stroke-width: 10;
+  stroke-width: 6;
 }
 
 .timer-ring-fill {
   fill: none;
   stroke: var(--accent);
-  stroke-width: 10;
+  stroke-width: 6;
   stroke-linecap: round;
   transition: stroke-dashoffset 0.5s linear, stroke 0.3s ease;
 }
@@ -1559,54 +1809,33 @@ body {
   50% { opacity: 0.55; }
 }
 
-.timer-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
 .timer-time {
-  font-size: 32px;
-  font-weight: 800;
+  font-size: 24px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
+  line-height: 1.15;
 }
 
 .timer-emoji {
-  font-size: 36px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
 }
 
 .timer-sub {
-  font-size: 12px;
+  margin: 0;
+  font-size: 12.5px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timer-ends {
-  font-size: 11px;
-  opacity: 0.85;
-}
-
-.timer-people {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center;
-}
-
-.timer-person {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--card-2);
-  border: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--faint);
 }
 
 .timer-foot {
@@ -1614,6 +1843,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  margin-top: 12px;
 }
 
 .timer-in {
@@ -1623,49 +1853,55 @@ body {
 
 /* ---- room chat (support-widget style, pinned bottom-right) ---- */
 
-.chat-fab {
-  position: fixed;
-  right: 14px;
-  bottom: calc(14px + env(safe-area-inset-bottom));
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--text);
-  font-size: 22px;
+/* Collapsed chat is a docked card carrying the last line, so the room can be
+   read without opening it. */
+.chat-dock {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-top: 14px;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
-  box-shadow: var(--shadow-lift);
-  z-index: 15;
+  width: 100%;
+  text-align: left;
 }
 
-.chat-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 21px;
-  height: 21px;
+.chat-dock:hover {
+  background: var(--card-2);
+}
+
+.chat-dock-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.chat-dock-preview {
+  font-size: 12.5px;
+  color: var(--faint);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-dock-badge {
+  min-width: 20px;
+  height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--red);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11.5px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* ring in the page background so the dot reads clearly off the button */
-  border: 2px solid var(--bg);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--red) 50%, transparent);
-  animation: chat-badge-pop 1.8s ease-in-out infinite;
-}
-
-@keyframes chat-badge-pop {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+  flex: 0 0 auto;
 }
 
 .chat-panel {
@@ -1760,33 +1996,96 @@ body {
   flex-shrink: 0;
 }
 
-.vote-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
-}
 
-.vote-chip {
-  min-height: 36px;
-  padding: 0 14px;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--muted);
-}
 
-.vote-chip strong {
-  color: var(--text);
-}
 
-.vote-chip-new {
-  font-weight: 600;
-}
 
 .vote-card {
   display: flex;
   flex-direction: column;
+  gap: 11px;
+  margin-top: 14px;
+}
+
+.vote-empty {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vote-empty:hover {
+  background: var(--card-2);
+  color: var(--text);
+}
+
+/* Sidebar vote row: label and count on one line, the result bar under it. */
+.vote-opt-slim {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.vote-opt-slim .vote-opt-top {
+  justify-content: space-between;
+  width: 100%;
+  font-size: 13.5px;
   gap: 8px;
+}
+
+.vote-opt-slim .vote-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vote-opt-slim.mine .vote-label {
+  color: var(--accent);
+}
+
+.vote-opt-slim .vote-count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.vote-opt-slim .vote-track {
+  background: var(--card-2);
+}
+
+.vote-opt-slim .vote-fill {
+  background: var(--border-2);
+}
+
+.vote-opt-slim.mine .vote-fill {
+  background: var(--accent);
+}
+
+.vote-more {
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.vote-more:hover {
+  background: var(--card-2);
+  color: var(--text);
 }
 
 .vote-head {

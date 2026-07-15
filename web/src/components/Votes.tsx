@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { FacilityMenu, SpaceState, Vote, VoteOption } from '../types';
+import type { FacilityMenu, SpaceState, Vote } from '../types';
 import { Sheet } from './Sheet';
 
 interface VoteActions {
@@ -11,38 +11,71 @@ interface VoteActions {
   removeVote(voteId: number): void;
 }
 
-function leaderOf(vote: Vote): VoteOption | null {
-  let best: VoteOption | null = null;
-  for (const o of vote.options) {
-    if (o.voters.length > 0 && (!best || o.voters.length > best.voters.length)) best = o;
+// The quiet part: each running vote as a card of result bars, tappable to
+// cast straight from the sidebar. Menus, options and new votes live in the
+// overlay behind the footer button.
+export function VotesBar({
+  votes,
+  userId,
+  onOpen,
+  onCast,
+}: {
+  votes: Vote[];
+  userId: number;
+  onOpen(): void;
+  onCast(voteId: number, optionId: number | null): void;
+}) {
+  if (votes.length === 0) {
+    return (
+      <button className="card vote-card vote-empty" onClick={onOpen}>
+        🗳️ Start a vote
+      </button>
+    );
   }
-  return best;
-}
-
-// The quiet part: one slim chip per running vote showing just the current
-// leader. Everything else lives in the overlay.
-export function VotesBar({ votes, onOpen }: { votes: Vote[]; onOpen(): void }) {
   return (
-    <div className="vote-bar">
+    <>
       {votes.map((v) => {
-        const lead = leaderOf(v);
+        const total = v.options.reduce((n, o) => n + o.voters.length, 0);
+        const mine = v.options.find((o) => o.voters.some((x) => x.userId === userId));
         return (
-          <button key={v.id} className="chip vote-chip" onClick={onOpen}>
-            🗳️ {v.title}:{' '}
-            {lead ? (
-              <>
-                <strong>{lead.label}</strong> · {lead.voters.length}
-              </>
-            ) : (
-              'no votes yet'
-            )}
-          </button>
+          <div key={v.id} className="card vote-card">
+            <div className="card-head">
+              <span className="card-label">{v.title}</span>
+              <span className="card-count">
+                {total} {total === 1 ? 'vote' : 'votes'}
+              </span>
+            </div>
+            {v.options.map((o) => {
+              const isMine = mine?.id === o.id;
+              return (
+                <button
+                  key={o.id}
+                  className={`vote-opt-slim${isMine ? ' mine' : ''}`}
+                  onClick={() => onCast(v.id, isMine ? null : o.id)}
+                >
+                  <span className="vote-opt-top">
+                    <span className="vote-label">
+                      {o.label}
+                      {isMine && ' · your pick'}
+                    </span>
+                    <span className="vote-count">{o.voters.length}</span>
+                  </span>
+                  <span className="vote-track">
+                    <span
+                      className="vote-fill"
+                      style={{ width: total ? `${(o.voters.length / total) * 100}%` : '0%' }}
+                    />
+                  </span>
+                </button>
+              );
+            })}
+            <button className="vote-more" onClick={onOpen}>
+              {v.kind === 'lunch' ? 'View menus · new vote' : 'Add an option · new vote'}
+            </button>
+          </div>
         );
       })}
-      <button className="chip vote-chip vote-chip-new" onClick={onOpen}>
-        {votes.length === 0 ? '🗳️ Start a vote' : '+'}
-      </button>
-    </div>
+    </>
   );
 }
 

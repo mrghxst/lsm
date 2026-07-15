@@ -5,7 +5,7 @@ import { useNowMinute } from '../useNow';
 
 type DetailKey = 'here' | 'coming' | 'free';
 
-export function SummaryBar({ state }: { state: SpaceState }) {
+export function SummaryBar({ state, onAddTable }: { state: SpaceState; onAddTable(): void }) {
   const { tables } = state;
   const now = useNowMinute();
   const [detail, setDetail] = useState<DetailKey | null>(null);
@@ -38,6 +38,10 @@ export function SummaryBar({ state }: { state: SpaceState }) {
         <button className={`stat stat-btn${detail === 'free' ? ' active' : ''}`} onClick={() => toggle('free')}>
           <span className="stat-value">{freeSeats}</span>
           <span className="stat-label">free seats</span>
+        </button>
+        <span className="stats-gap" />
+        <button className="add-table-btn" onClick={onAddTable}>
+          + Add table
         </button>
       </div>
 

@@ -26,8 +26,8 @@ function minutesUntil(hhmm: string): number | null {
   return mins;
 }
 
-// Ring geometry: r=66 in a 160×160 viewBox leaves room for the 10px stroke.
-const R = 66;
+// Ring geometry: r=27 in a 64×64 viewBox leaves room for the 6px stroke.
+const R = 27;
 const CIRC = 2 * Math.PI * R;
 
 function useNowSeconds(active: boolean) {
@@ -176,14 +176,59 @@ export function FocusTimerCard({
   const totalMin = Math.round(timer.durationS / 60);
   const canStop = finished || canManage || timer.startedBy === userId;
 
+  // Who's in, as a sentence — the round is glanceable, the roster is detail.
+  const names = timer.participants.map((p) => p.username);
+  const roster =
+    names.length === 0
+      ? 'nobody yet'
+      : names.length <= 3
+        ? names.join(', ')
+        : `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+
   return (
-    <div className="card stack timer-card">
-      <div className="timer-head">
-        <h2 className="section-title">{finished ? '☕ Break time!' : '⏱️ Focus round'}</h2>
+    <div className="card timer-card">
+      <div className="timer-row">
+        <div className="timer-ring-wrap">
+          <svg className="timer-ring" viewBox="0 0 64 64">
+            <circle className="timer-ring-track" cx="32" cy="32" r={R} />
+            <circle
+              className={`timer-ring-fill${joinOpen ? ' joinable' : ''}`}
+              cx="32"
+              cy="32"
+              r={R}
+              strokeDasharray={CIRC}
+              strokeDashoffset={CIRC * (1 - frac)}
+              transform="rotate(-90 32 32)"
+            />
+          </svg>
+          {finished && <span className="timer-emoji">🎉</span>}
+        </div>
+
+        <div className="timer-body">
+          <span className="card-label">{finished ? '☕ Break time' : '⏱️ Focus round'}</span>
+          <div className="timer-time-row">
+            {finished ? (
+              <span className="timer-time">{totalMin} min</span>
+            ) : (
+              <>
+                <span className="timer-time">{fmt(remaining)}</span>
+                <span className="timer-of">of {totalMin} min</span>
+              </>
+            )}
+          </div>
+          <p className="timer-sub">
+            {finished
+              ? `Nice work${joined ? ' — stretch your legs' : ''}! Anyone can start the next round.`
+              : `${roster} focusing · ${joinOpen ? `join open ${fmt(timer.joinUntil - now)}` : 'join window closed'}`}
+          </p>
+          {!finished && <p className="timer-sub timer-ends">ends {formatClock(timer.endsAt)}</p>}
+        </div>
+
         {canStop && (
           <button
-            className="occupant-btn danger"
+            className="timer-stop"
             title={finished ? 'Dismiss' : 'Stop the timer for everyone'}
+            aria-label={finished ? 'Dismiss' : 'Stop the timer for everyone'}
             onClick={() => {
               if (finished || window.confirm('Stop the timer for everyone?')) actions.cancelTimer(timer.id);
             }}
@@ -193,59 +238,19 @@ export function FocusTimerCard({
         )}
       </div>
 
-      <div className="timer-ring-wrap">
-        <svg className="timer-ring" viewBox="0 0 160 160">
-          <circle className="timer-ring-track" cx="80" cy="80" r={R} />
-          <circle
-            className={`timer-ring-fill${joinOpen ? ' joinable' : ''}`}
-            cx="80"
-            cy="80"
-            r={R}
-            strokeDasharray={CIRC}
-            strokeDashoffset={CIRC * (1 - frac)}
-            transform="rotate(-90 80 80)"
-          />
-        </svg>
-        <div className="timer-center">
-          {finished ? <span className="timer-emoji">🎉</span> : <span className="timer-time">{fmt(remaining)}</span>}
-          <span className="timer-sub">
-            {finished
-              ? `${totalMin} min done`
-              : joinOpen
-                ? `join open ${fmt(timer.joinUntil - now)}`
-                : `of ${totalMin} min`}
-          </span>
-          {!finished && <span className="timer-sub timer-ends">ends {formatClock(timer.endsAt)}</span>}
-        </div>
-      </div>
-
-      <div className="timer-people">
-        {timer.participants.map((p) => (
-          <span key={p.userId} className="timer-person">
-            <span className="person-dot" style={{ background: p.color }} />
-            {p.username}
-          </span>
-        ))}
-      </div>
-
-      {finished ? (
-        <p className="hint timer-hint">
-          Nice work{joined ? ' — stretch your legs' : ''}! Anyone can start the next round.
-        </p>
-      ) : joined ? (
-        <div className="timer-foot">
-          <span className="timer-in">You're in ✓</span>
-          <button className="btn btn-secondary btn-compact" onClick={() => actions.leaveTimer(timer.id)}>
-            Leave
+      {!finished &&
+        (joined ? (
+          <div className="timer-foot">
+            <span className="timer-in">You're in ✓</span>
+            <button className="btn btn-secondary btn-compact" onClick={() => actions.leaveTimer(timer.id)}>
+              Leave
+            </button>
+          </div>
+        ) : joinOpen ? (
+          <button className="btn btn-primary" onClick={() => actions.joinTimer(timer.id)}>
+            🔥 Join this round
           </button>
-        </div>
-      ) : joinOpen ? (
-        <button className="btn btn-primary" onClick={() => actions.joinTimer(timer.id)}>
-          🔥 Join this round
-        </button>
-      ) : (
-        <p className="hint timer-hint">Join window closed — catch the next round!</p>
-      )}
+        ) : null)}
     </div>
   );
 }
