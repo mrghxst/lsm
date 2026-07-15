@@ -583,7 +583,7 @@ export function Room({
   // zoom, so every line renders at exactly one screen pixel at any zoom —
   // uniform, never thinning out or disappearing.
   const lineW = 1 / view.scale;
-  const lineCol = 'rgba(44, 54, 68, 0.45)';
+  const lineCol = 'var(--grid)';
   const gc0 = Math.floor(win.c0) - 1;
   const gr0 = Math.floor(win.r0) - 1;
   const gridCells = win.side + 4;

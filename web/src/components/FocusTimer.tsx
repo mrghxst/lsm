@@ -84,7 +84,7 @@ export function FocusTimerCard({
     };
     return (
       <div className="card stack timer-card">
-        <h2 className="section-title">⏱️ Focus together</h2>
+        <h2 className="section-title">Focus together</h2>
         <p className="hint timer-hint">Start a round — everyone here gets invited to focus with you.</p>
         <div className="timer-presets">
           {PRESETS.map((m) => (
@@ -205,7 +205,7 @@ export function FocusTimerCard({
         </div>
 
         <div className="timer-body">
-          <span className="card-label">{finished ? '☕ Break time' : '⏱️ Focus round'}</span>
+          <span className="card-label">{finished ? 'Break time' : 'Focus round'}</span>
           <div className="timer-time-row">
             {finished ? (
               <span className="timer-time">{totalMin} min</span>

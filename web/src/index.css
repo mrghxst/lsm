@@ -244,6 +244,17 @@ body {
   display: none;
 }
 
+.bar-btn-glyph svg,
+.icon-btn > svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 @media (min-width: 700px) {
   .app-bar {
     padding: 0 20px;
@@ -649,9 +660,8 @@ body {
 
 /* ---------- room canvas ---------- */
 
-/* The room is square on every device: table positions are fractions of
-   the canvas, so differing aspect ratios would make layouts that don't
-   overlap on one screen overlap on another. */
+/* The phone view stays square for a predictable touch target. The desktop
+   override below expands this canvas to the exported wide room layout. */
 .room {
   position: relative;
   width: 100%;
@@ -1512,16 +1522,15 @@ body {
   }
 
   .space-layout .room {
-    /* Height-driven on desktop, but the same square shape as mobile so
-       arrangements render identically on both. */
+    /* The exported desktop design is canvas-first: use the whole available
+       work area. Phones keep the square room below this breakpoint. */
     height: 100%;
-    width: auto;
-    aspect-ratio: 1 / 1;
-    max-width: 100%;
-    align-self: center;
+    width: 100%;
+    aspect-ratio: auto;
+    align-self: stretch;
   }
 
-  .space-layout }
+}
 
 /* ---------- github footer ---------- */
 
@@ -2021,11 +2030,45 @@ body {
   color: var(--text);
 }
 
-/* Sidebar vote row: label and count on one line, the result bar under it. */
-.vote-opt-slim {
+.vote-summary-card {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.vote-summary-card:hover {
+  background: var(--card-2);
+  border-color: var(--border-2);
+}
+
+.vote-summary-card .card-head {
+  margin-bottom: 0;
+}
+
+.vote-summary-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.vote-summary-arrow {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 0.8;
+}
+
+/* Only the current leader is shown here. Full results and every voting action
+   live in the sheet, keeping the room view calm while work is in progress. */
+.vote-leader {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
   background: none;
   border: none;
   padding: 0;
@@ -2035,57 +2078,37 @@ body {
   text-align: left;
 }
 
-.vote-opt-slim .vote-opt-top {
+.vote-leader-result {
+  display: flex;
+  align-items: baseline;
   justify-content: space-between;
   width: 100%;
   font-size: 13.5px;
   gap: 8px;
 }
 
-.vote-opt-slim .vote-label {
+.vote-leader .vote-label {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.vote-opt-slim.mine .vote-label {
-  color: var(--accent);
-}
-
-.vote-opt-slim .vote-count {
+.vote-leader .vote-count {
   color: var(--muted);
   font-weight: 400;
 }
 
-.vote-opt-slim .vote-track {
+.vote-leader .vote-track {
   background: var(--card-2);
 }
 
-.vote-opt-slim .vote-fill {
-  background: var(--border-2);
-}
-
-.vote-opt-slim.mine .vote-fill {
+.vote-leader .vote-fill {
   background: var(--accent);
 }
 
-.vote-more {
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--muted);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-top: 2px;
-}
-
-.vote-more:hover {
-  background: var(--card-2);
-  color: var(--text);
+.vote-leader.empty .vote-track {
+  opacity: 0.65;
 }
 
 .vote-head {

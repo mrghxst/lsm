@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { applyTheme, resolveTheme, type Theme } from '../theme';
+import { MoonIcon, SunIcon } from './Icons';
 
 // index.html already put the right class on <html> before first paint; this
 // only has to stay in step with it and flip it on tap.
@@ -12,7 +13,7 @@ export function ThemeToggle({
 }) {
   const [theme, setTheme] = useState<Theme>(resolveTheme);
   const next: Theme = theme === 'dark' ? 'light' : 'dark';
-  const glyph = theme === 'dark' ? '☀️' : '🌙';
+  const glyph = theme === 'dark' ? <SunIcon /> : <MoonIcon />;
   return (
     <button
       className={className}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { FacilityMenu, SpaceState, Vote } from '../types';
+import type { FacilityMenu, SpaceState, Vote, VoteOption } from '../types';
 import { Sheet } from './Sheet';
 
 interface VoteActions {
@@ -11,24 +11,29 @@ interface VoteActions {
   removeVote(voteId: number): void;
 }
 
-// The quiet part: each running vote as a card of result bars, tappable to
-// cast straight from the sidebar. Menus, options and new votes live in the
-// overlay behind the footer button.
+function leaderOf(vote: Vote): VoteOption | null {
+  let leader: VoteOption | null = null;
+  for (const option of vote.options) {
+    if (option.voters.length === 0) continue;
+    if (!leader || option.voters.length > leader.voters.length) leader = option;
+  }
+  return leader;
+}
+
+// The sidebar is deliberately only a status summary. Showing one leader per
+// poll keeps decisions visible without turning the study room into a voting
+// dashboard; choosing an option remains an intentional action in the sheet.
 export function VotesBar({
   votes,
-  userId,
   onOpen,
-  onCast,
 }: {
   votes: Vote[];
-  userId: number;
   onOpen(): void;
-  onCast(voteId: number, optionId: number | null): void;
 }) {
   if (votes.length === 0) {
     return (
-      <button className="card vote-card vote-empty" onClick={onOpen}>
-        🗳️ Start a vote
+      <button className="card vote-card vote-summary-card vote-empty" onClick={onOpen}>
+        + Start a vote
       </button>
     );
   }
@@ -36,43 +41,34 @@ export function VotesBar({
     <>
       {votes.map((v) => {
         const total = v.options.reduce((n, o) => n + o.voters.length, 0);
-        const mine = v.options.find((o) => o.voters.some((x) => x.userId === userId));
+        const leader = leaderOf(v);
         return (
-          <div key={v.id} className="card vote-card">
-            <div className="card-head">
+          <button
+            key={v.id}
+            className="card vote-card vote-summary-card"
+            onClick={onOpen}
+            aria-label={`Open ${v.title}`}
+          >
+            <span className="card-head">
               <span className="card-label">{v.title}</span>
-              <span className="card-count">
+              <span className="vote-summary-meta">
                 {total} {total === 1 ? 'vote' : 'votes'}
+                <span className="vote-summary-arrow" aria-hidden="true">›</span>
               </span>
-            </div>
-            {v.options.map((o) => {
-              const isMine = mine?.id === o.id;
-              return (
-                <button
-                  key={o.id}
-                  className={`vote-opt-slim${isMine ? ' mine' : ''}`}
-                  onClick={() => onCast(v.id, isMine ? null : o.id)}
-                >
-                  <span className="vote-opt-top">
-                    <span className="vote-label">
-                      {o.label}
-                      {isMine && ' · your pick'}
-                    </span>
-                    <span className="vote-count">{o.voters.length}</span>
-                  </span>
-                  <span className="vote-track">
-                    <span
-                      className="vote-fill"
-                      style={{ width: total ? `${(o.voters.length / total) * 100}%` : '0%' }}
-                    />
-                  </span>
-                </button>
-              );
-            })}
-            <button className="vote-more" onClick={onOpen}>
-              {v.kind === 'lunch' ? 'View menus · new vote' : 'Add an option · new vote'}
-            </button>
-          </div>
+            </span>
+            <span className={`vote-leader${leader ? '' : ' empty'}`}>
+              <span className="vote-leader-result">
+                <span className="vote-label">{leader?.label ?? 'No result yet'}</span>
+                {leader && <span className="vote-count">{leader.voters.length}</span>}
+              </span>
+              <span className="vote-track" aria-hidden="true">
+                <span
+                  className="vote-fill"
+                  style={{ width: leader && total ? `${(leader.voters.length / total) * 100}%` : '0%' }}
+                />
+              </span>
+            </span>
+          </button>
         );
       })}
     </>

@@ -14,6 +14,7 @@ import { FocusTimerCard } from '../components/FocusTimer';
 import { RoomChat } from '../components/Chat';
 import { SpaceSettings } from '../components/SpaceSettings';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { BellIcon, SettingsIcon, ShareIcon } from '../components/Icons';
 
 export function Space() {
   const { code = '' } = useParams();
@@ -211,7 +212,7 @@ export function Space() {
       </div>
       <div className="app-bar-actions">
         <button className="bar-btn" onClick={() => void share()} aria-label="Share">
-          <span className="bar-btn-glyph">📤</span>
+          <span className="bar-btn-glyph"><ShareIcon /></span>
           <span className="bar-btn-label">Share</span>
         </button>
         <button
@@ -219,11 +220,11 @@ export function Space() {
           onClick={() => void toggleNotifications()}
           aria-label="Notifications"
         >
-          <span className="bar-btn-glyph">{pushOn ? '🔔' : '🔕'}</span>
+          <span className="bar-btn-glyph"><BellIcon muted={!pushOn} /></span>
           <span className="bar-btn-label">{pushOn ? 'Notifications on' : 'Notifications off'}</span>
         </button>
         <button className="bar-btn" onClick={() => setSettingsOpen(true)} aria-label="Space settings">
-          <span className="bar-btn-glyph">⚙</span>
+          <span className="bar-btn-glyph"><SettingsIcon /></span>
           <span className="bar-btn-label">Settings</span>
         </button>
         <ThemeToggle className="bar-btn" withLabel />
@@ -438,15 +439,13 @@ export function Space() {
       </div>
 
       <aside className="space-side">
-        <PeopleList tables={tables} />
+        <PeopleList tables={tables} currentUserId={user.id} />
 
         <FocusTimerCard timer={state.timer} userId={user.id} canManage={canManageSession} actions={timerActions} />
 
         <VotesBar
           votes={state.votes}
-          userId={user.id}
           onOpen={() => setVotesOpen(true)}
-          onCast={voteActions.castBallot}
         />
 
         <RoomChat
