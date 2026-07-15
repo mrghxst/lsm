@@ -860,6 +860,15 @@ body {
   }
 }
 
+/* The whole top strip (handle + title row) is the drag-to-dismiss target;
+   touch-action lets us own the vertical swipe instead of the scroller. */
+.sheet-grab {
+  touch-action: none;
+  cursor: grab;
+  margin: 0 -18px;
+  padding: 0 18px;
+}
+
 .sheet-handle {
   width: 44px;
   height: 5px;
@@ -870,14 +879,38 @@ body {
 
 .sheet-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 14px;
 }
 
 .sheet-head h2 {
   margin: 0;
   font-size: 20px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* A tall sheet can cover the whole phone screen and leave no backdrop to
+   tap — the ✕ must always be there. */
+.sheet-close {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: var(--card-2);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.sheet-close:active {
+  background: var(--border);
+  color: var(--text);
 }
 
 .sheet-status {
@@ -1347,6 +1380,11 @@ body {
 .timer-sub {
   font-size: 12px;
   color: var(--muted);
+}
+
+.timer-ends {
+  font-size: 11px;
+  opacity: 0.85;
 }
 
 .timer-people {

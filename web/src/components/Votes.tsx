@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { FacilityMenu, SpaceState, Vote, VoteOption } from '../types';
+import { Sheet } from './Sheet';
 
 interface VoteActions {
   castBallot(voteId: number, optionId: number | null): void;
@@ -238,13 +239,8 @@ export function VoteSheet({
   }
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet vote-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
-        <div className="sheet-head">
-          <h2>Votes</h2>
-        </div>
-        <div className="stack">
+    <Sheet title="Votes" onClose={onClose}>
+      <div className="stack">
           {!hasLunchVote && (
             <button className="btn btn-secondary" onClick={() => actions.startLunchVote()}>
               🍽️ Where to eat lunch today?
@@ -286,7 +282,6 @@ export function VoteSheet({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </Sheet>
   );
 }

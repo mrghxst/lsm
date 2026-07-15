@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FocusTimer } from '../types';
+import { formatClock } from '../util';
 
 export interface TimerActions {
   startTimer(minutes: number): void;
@@ -9,6 +10,21 @@ export interface TimerActions {
 }
 
 const PRESETS = [45, 60, 90];
+const MIN_MINUTES = 5;
+const MAX_MINUTES = 240;
+
+// How many minutes a round must run to end at the given wall-clock time.
+// A time earlier than now means (early) tomorrow — useful around midnight;
+// anything beyond the 4 h cap comes back too large and fails validation.
+function minutesUntil(hhmm: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  if (!m) return null;
+  const target = new Date();
+  target.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  let mins = Math.round((target.getTime() - Date.now()) / 60_000);
+  if (mins <= 0) mins += 24 * 60;
+  return mins;
+}
 
 // Ring geometry: r=66 in a 160×160 viewBox leaves room for the 10px stroke.
 const R = 66;
@@ -47,14 +63,24 @@ export function FocusTimerCard({
   const now = useNowSeconds(timer !== null);
   const [customOpen, setCustomOpen] = useState(false);
   const [custom, setCustom] = useState('');
+  const [untilOpen, setUntilOpen] = useState(false);
+  const [until, setUntil] = useState('');
 
   if (!timer) {
     const customMin = Number(custom);
-    const customOk = Number.isInteger(customMin) && customMin >= 5 && customMin <= 240;
+    const customOk = Number.isInteger(customMin) && customMin >= MIN_MINUTES && customMin <= MAX_MINUTES;
     const startCustom = () => {
       actions.startTimer(customMin);
       setCustom('');
       setCustomOpen(false);
+    };
+    const untilMin = until ? minutesUntil(until) : null;
+    const untilOk = untilMin !== null && untilMin >= MIN_MINUTES && untilMin <= MAX_MINUTES;
+    const startUntil = () => {
+      if (untilMin === null) return;
+      actions.startTimer(untilMin);
+      setUntil('');
+      setUntilOpen(false);
     };
     return (
       <div className="card stack timer-card">
@@ -70,9 +96,22 @@ export function FocusTimerCard({
           <button
             className={`chip timer-preset${customOpen ? ' active' : ''}`}
             title="Custom length"
-            onClick={() => setCustomOpen(!customOpen)}
+            onClick={() => {
+              setCustomOpen(!customOpen);
+              setUntilOpen(false);
+            }}
           >
             ✎<small>own</small>
+          </button>
+          <button
+            className={`chip timer-preset${untilOpen ? ' active' : ''}`}
+            title="Run until a set time"
+            onClick={() => {
+              setUntilOpen(!untilOpen);
+              setCustomOpen(false);
+            }}
+          >
+            🕐<small>until</small>
           </button>
         </div>
         {customOpen && (
@@ -80,8 +119,8 @@ export function FocusTimerCard({
             <input
               className="input"
               type="number"
-              min={5}
-              max={240}
+              min={MIN_MINUTES}
+              max={MAX_MINUTES}
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
               onKeyDown={(e) => {
@@ -96,6 +135,34 @@ export function FocusTimerCard({
               Start
             </button>
           </div>
+        )}
+        {untilOpen && (
+          <>
+            <div className="vote-add-row">
+              <input
+                className="input"
+                type="time"
+                value={until}
+                onChange={(e) => setUntil(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && untilOk) {
+                    e.preventDefault();
+                    startUntil();
+                  }
+                }}
+              />
+              <button className="btn btn-primary btn-compact" disabled={!untilOk} onClick={startUntil}>
+                {untilOk ? `Start (${untilMin} min)` : 'Start'}
+              </button>
+            </div>
+            {untilMin !== null && !untilOk && (
+              <p className="hint timer-hint">
+                {untilMin < MIN_MINUTES
+                  ? `That's only ${untilMin} min away — rounds need at least ${MIN_MINUTES}.`
+                  : `That's ${untilMin} min away — rounds max out at ${MAX_MINUTES} (4 h).`}
+              </p>
+            )}
+          </>
         )}
       </div>
     );
@@ -148,6 +215,7 @@ export function FocusTimerCard({
                 ? `join open ${fmt(timer.joinUntil - now)}`
                 : `of ${totalMin} min`}
           </span>
+          {!finished && <span className="timer-sub timer-ends">ends {formatClock(timer.endsAt)}</span>}
         </div>
       </div>
 
