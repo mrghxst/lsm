@@ -789,9 +789,22 @@ spacesRouter.patch('/:code/tables/:tableId', (req, res) => {
     updates.rot = rot;
   }
   if (x !== undefined || y !== undefined || updates.rot !== undefined) {
-    const nx = Number(x ?? table.x);
-    const ny = Number(y ?? table.y);
+    let nx = Number(x ?? table.x);
+    let ny = Number(y ?? table.y);
     if (!Number.isFinite(nx) || !Number.isFinite(ny)) return res.status(400).json({ error: 'Invalid position.' });
+    // A pure rotation pivots around the table's top-left cell. Rotating
+    // about the center would land the new footprint between cells, and the
+    // snap always rounds the same way — repeated rotation would walk the
+    // table across the room.
+    if (updates.rot !== undefined && updates.rot !== table.rot && x === undefined && y === undefined) {
+      const before = tablePlacement(table.x, table.y, table.rot);
+      const wc = updates.rot === 0 ? 2 : 1;
+      const hc = updates.rot === 0 ? 1 : 2;
+      const leftCell = Math.min(CELLS - wc, before.leftCell);
+      const topCell = Math.min(CELLS - hc, before.topCell);
+      nx = (leftCell + wc / 2) * GRID_CELL;
+      ny = (topCell + hc / 2) * GRID_CELL;
+    }
     // Snap to the half-table grid and refuse overlaps: the table lands
     // on the nearest free spot within one cell, or nowhere at all.
     const others = db

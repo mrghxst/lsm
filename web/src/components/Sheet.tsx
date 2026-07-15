@@ -32,6 +32,10 @@ export function Sheet({
   }, [onClose]);
 
   function grabDown(e: ReactPointerEvent) {
+    // Never capture a press that starts on a button (the ✕, or anything a
+    // caller renders into the header): capturing retargets the browser's
+    // compatibility click to the grab zone, so the button would never fire.
+    if ((e.target as HTMLElement).closest('button')) return;
     drag.current = { id: e.pointerId, startY: e.clientY };
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
