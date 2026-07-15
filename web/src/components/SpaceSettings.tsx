@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { NotificationPreferences, SpaceMembership, SpaceState, User } from '../types';
+import { Sheet } from './Sheet';
 
 interface SettingsActions {
   updateMembership(patch: { archived?: boolean; notifications?: Partial<NotificationPreferences> }): Promise<void>;
@@ -53,15 +54,8 @@ export function SpaceSettings({
   }
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet settings-sheet" onClick={(event) => event.stopPropagation()}>
-        <div className="sheet-handle" />
-        <div className="sheet-head">
-          <h2>Space settings</h2>
-          <button className="icon-btn" aria-label="Close settings" onClick={onClose}>X</button>
-        </div>
-
-        <div className="stack">
+    <Sheet title="Space settings" className="settings-sheet" onClose={onClose}>
+      <div className="stack">
           <div className="sheet-section stack">
             <p className="sheet-label">Notifications for this space</p>
             {notificationRows.map((row) => (
@@ -159,7 +153,6 @@ export function SpaceSettings({
 
           {error && <p className="error">{error}</p>}
         </div>
-      </div>
-    </div>
+      </Sheet>
   );
 }

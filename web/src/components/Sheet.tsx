@@ -10,11 +10,13 @@ const DISMISS_DRAG_PX = 70;
 export function Sheet({
   title,
   meta,
+  className,
   onClose,
   children,
 }: {
   title: ReactNode;
   meta?: ReactNode;
+  className?: string;
   onClose(): void;
   children: ReactNode;
 }) {
@@ -59,7 +61,7 @@ export function Sheet({
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div
-        className="sheet"
+        className={className ? `sheet ${className}` : 'sheet'}
         onClick={(e) => e.stopPropagation()}
         style={dragY > 0 ? { transform: `translateY(${dragY}px)` } : undefined}
       >
