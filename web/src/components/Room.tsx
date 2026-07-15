@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Claim, Table } from '../types';
-import { claimColor } from '../util';
+import { claimColor, etaLabel, formatDuration } from '../util';
+import { useNowMinute } from '../useNow';
 
 // The virtual room is CANVAS x the viewport in each dimension; the default
 // view (scale = MIN_SCALE) shows all of it.
@@ -201,7 +202,7 @@ function fitLabel(name: string, maxW: number): string {
   const shortest = uniq[uniq.length - 1] ?? clean.slice(0, 2);
   if (!labelCtx) return shortest;
   for (const f of uniq) {
-    if (labelCtx.measureText(f.toUpperCase()).width <= maxW) return f;
+    if (labelCtx.measureText(f).width <= maxW) return f;
   }
   return shortest; // two letters, shown even if the seat is very tight
 }
@@ -222,19 +223,46 @@ function SeatLabel({ name }: { name: string }) {
     ro.observe(box);
     return () => ro.disconnect();
   }, [name]);
-  return <span ref={ref}>{text}</span>;
+  return (
+    <span className="seat-name" ref={ref}>
+      {text}
+    </span>
+  );
 }
 
-function Segment({ claim, mine }: { claim: Claim | undefined; mine: boolean }) {
-  if (!claim) return <div className="segment empty" />;
+// The seat's own one-liner: how long they've been sitting there, or when
+// they're due. CSS hides it when the seat is too small to hold two lines.
+function seatSub(claim: Claim, now: number): string {
+  if (claim.status !== 'arrived') return etaLabel(claim.eta);
+  return claim.arrivedAt ? formatDuration(claim.arrivedAt, now) : 'here';
+}
+
+function Segment({ claim, mine, now }: { claim: Claim | undefined; mine: boolean; now: number }) {
+  if (!claim) {
+    return (
+      <div className="segment empty">
+        <span className="seat-name">free</span>
+      </div>
+    );
+  }
   const color = claimColor(claim);
-  const style =
-    claim.status === 'arrived'
-      ? { background: color }
-      : { background: `${color}38`, boxShadow: `inset 0 0 0 2px ${color}` };
+  const arrived = claim.status === 'arrived';
+  // Arrived seats are filled with the colour and knock the text out in white;
+  // seats still on the way are only tinted, so the text takes the colour.
+  const style = arrived
+    ? { background: color }
+    : {
+        background: `color-mix(in srgb, ${color} 13%, var(--canvas))`,
+        boxShadow: `inset 0 0 0 2px ${color}`,
+        color,
+      };
+  const subStyle = arrived ? undefined : { color: `color-mix(in srgb, ${color} 70%, var(--muted))` };
   return (
-    <div className={`segment${mine ? ' mine-seat' : ''}`} style={style}>
+    <div className={`segment ${arrived ? 'taken' : 'coming'}${mine ? ' mine-seat' : ''}`} style={style}>
       <SeatLabel name={claim.guestName ?? claim.username} />
+      <span className="seat-sub" style={subStyle}>
+        {seatSub(claim, now)}
+      </span>
     </div>
   );
 }
@@ -264,6 +292,7 @@ export function Room({
   onTap(id: number, seat: number): void;
   onMove(id: number, x: number, y: number): void;
 }) {
+  const now = useNowMinute(); // drives the "24 min" seat sub-labels
   const outerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>(FIT_VIEW);
@@ -637,7 +666,14 @@ export function Room({
                 <div className={`segments ${horizontal ? 'srow' : 'scol'}`}>
                   {Array.from({ length: t.capacity }, (_, i) => {
                     const claim = t.claims.find((c) => c.seat === i);
-                    return <Segment key={i} claim={claim} mine={claim?.userId === currentUserId && !claim?.guestName} />;
+                    return (
+                      <Segment
+                        key={i}
+                        claim={claim}
+                        mine={claim?.userId === currentUserId && !claim?.guestName}
+                        now={now}
+                      />
+                    );
                   })}
                 </div>
               )}

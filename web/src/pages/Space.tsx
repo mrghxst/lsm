@@ -13,6 +13,7 @@ import { VotesBar, VoteSheet } from '../components/Votes';
 import { FocusTimerCard } from '../components/FocusTimer';
 import { RoomChat } from '../components/Chat';
 import { SpaceSettings } from '../components/SpaceSettings';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 export function Space() {
   const { code = '' } = useParams();
@@ -200,9 +201,11 @@ export function Space() {
       <div className="top-title-group">
         <h1 className="top-title">{space.name}</h1>
         <span className="top-sub">
-          Code {space.code}
-          {space.status === 'open' && space.openedByName ? ` · set up by ${space.openedByName}` : ''}
+          <span className="top-code">{space.code}</span>
           <span className={`live-dot ${connected ? 'on' : 'off'}`} title={connected ? 'Live' : 'Reconnecting…'} />
+          {space.status === 'open' && space.openedByName && (
+            <span className="top-by">set up by {space.openedByName}</span>
+          )}
         </span>
       </div>
       <button
@@ -218,6 +221,7 @@ export function Space() {
       <button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Space settings">
         &#9881;
       </button>
+      <ThemeToggle />
     </header>
   );
 

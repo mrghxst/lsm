@@ -25,7 +25,7 @@ export function SummaryBar({ state }: { state: SpaceState }) {
   const toggle = (key: DetailKey) => setDetail((d) => (d === key ? null : key));
 
   return (
-    <div className="card summary">
+    <div className="summary">
       <div className="stats">
         <button className={`stat stat-btn${detail === 'here' ? ' active' : ''}`} onClick={() => toggle('here')}>
           <span className="stat-value ok">{arrived.length}</span>
@@ -42,7 +42,7 @@ export function SummaryBar({ state }: { state: SpaceState }) {
       </div>
 
       {detail === 'here' && (
-        <ul className="people-list summary-detail">
+        <ul className="people-list summary-detail card">
           {arrived.length === 0 && <li className="hint">Nobody has arrived yet.</li>}
           {arrived.map((p) => (
             <li key={p.id}>
@@ -61,7 +61,7 @@ export function SummaryBar({ state }: { state: SpaceState }) {
       )}
 
       {detail === 'coming' && (
-        <ul className="people-list summary-detail">
+        <ul className="people-list summary-detail card">
           {coming.length === 0 && <li className="hint">Nobody is on the way right now.</li>}
           {coming.map((p) => (
             <li key={p.id}>
@@ -78,7 +78,7 @@ export function SummaryBar({ state }: { state: SpaceState }) {
       )}
 
       {detail === 'free' && (
-        <ul className="people-list summary-detail">
+        <ul className="people-list summary-detail card">
           {freeByTable.length === 0 && <li className="hint">Every seat is taken.</li>}
           {freeByTable.map((t) => (
             <li key={t.id}>

@@ -1,16 +1,60 @@
+/* Warm paper light theme by default, deep slate dark under .dark on <html>
+   (set by src/theme.ts, and inline in index.html to avoid a flash).
+   Every surface in the app is painted from these tokens — change them here,
+   not in the rules below. */
 :root {
-  --bg: #0e1116;
-  --card: #171c24;
-  --card-2: #212936;
-  --border: #2c3644;
-  --text: #e8edf4;
-  --muted: #8b98a9;
-  --accent: #4f8cff;
-  --accent-press: #3a76e8;
-  --green: #34c77b;
-  --amber: #f5a623;
-  --red: #ef5563;
-  --radius: 16px;
+  --bg: #f7f6f3;
+  --card: #fff;
+  --card-2: #f1efe9;
+  --border: #e7e4dc;
+  /* stronger border, for shapes that must read against --card (table edges,
+     empty seats) rather than merely divide it */
+  --border-2: #d8d3c6;
+  --text: #1b1d22;
+  --muted: #7c776b;
+  /* third-level text: hints and placeholders that must recede behind --muted */
+  --faint: #b3ada0;
+  --accent: #4353c9;
+  --accent-press: #2f3da8;
+  --on-accent: #fff;
+  --green: #3ba55f;
+  --amber: #a07a0f;
+  --red: #d64545;
+  --grid: rgba(27, 29, 34, 0.045);
+  --canvas: #fff;
+  --table-shadow: 0 2px 10px rgba(27, 29, 34, 0.06);
+  --overlay: rgba(27, 29, 34, 0.35);
+  --shadow-lift: 0 6px 20px rgba(27, 29, 34, 0.1);
+  --shadow-float: 0 14px 44px rgba(27, 29, 34, 0.16);
+  --scheme: light;
+  /* cards and the room canvas; controls and sheets have their own below */
+  --radius: 14px;
+  --radius-control: 10px;
+  --radius-sheet: 18px;
+}
+
+:root.dark {
+  --bg: #0b0e13;
+  --card: #12161d;
+  --card-2: #1a202a;
+  --border: #1b212c;
+  --border-2: #2b3442;
+  --text: #e6eaf1;
+  --muted: #8a93a5;
+  --faint: #5c6678;
+  --accent: #5f9dff;
+  --accent-press: #4a86e8;
+  --on-accent: #0b0e13;
+  --green: #43d17c;
+  --amber: #e2ad34;
+  --red: #ef6b76;
+  --grid: rgba(90, 110, 140, 0.1);
+  --canvas: #0e1219;
+  --table-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --overlay: rgba(0, 0, 0, 0.55);
+  --shadow-lift: 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 14px 44px rgba(0, 0, 0, 0.5);
+  --scheme: dark;
 }
 
 * {
@@ -49,13 +93,25 @@ body {
   padding: 0;
 }
 
+html {
+  /* native controls (time picker, checkboxes, scrollbars) follow the theme */
+  color-scheme: var(--scheme);
+}
+
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.45;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Space Grotesk carries the numbers that get read at a glance — the stat
+   counts and the focus countdown. Everything else stays in Instrument Sans. */
+.stat-value,
+.timer-time {
+  font-family: 'Space Grotesk', 'Instrument Sans', system-ui, sans-serif;
 }
 
 .app {
@@ -92,12 +148,12 @@ body {
 /* ---------- buttons & inputs ---------- */
 
 .btn {
-  min-height: 54px;
+  min-height: 50px;
   padding: 12px 18px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   font-family: inherit;
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   border: none;
   width: 100%;
   cursor: pointer;
@@ -115,7 +171,7 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .btn-primary:active {
@@ -131,7 +187,7 @@ body {
 .btn-danger {
   background: transparent;
   color: var(--red);
-  border: 1px solid rgba(239, 85, 99, 0.4);
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
 }
 
 .btn-link {
@@ -152,14 +208,14 @@ body {
 }
 
 .input {
-  min-height: 54px;
-  font-size: 17px;
+  min-height: 50px;
+  font-size: 16px;
   font-family: inherit;
   background: var(--card-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   color: var(--text);
-  padding: 0 16px;
+  padding: 0 14px;
   width: 100%;
   outline: none;
 }
@@ -224,6 +280,17 @@ body {
   padding: 16px 0 20px;
 }
 
+.page-head-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-head-row h1 {
+  flex: 1;
+  min-width: 0;
+}
+
 .section-title {
   font-size: 15px;
   color: var(--muted);
@@ -270,18 +337,23 @@ body {
 
 .icon-btn {
   flex: 0 0 auto;
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 18px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   color: var(--text);
   text-decoration: none;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: var(--card-2);
 }
 
 .top-title-group {
@@ -290,7 +362,8 @@ body {
 }
 
 .top-title {
-  font-size: 18px;
+  font-size: 17px;
+  font-weight: 600;
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -302,14 +375,33 @@ body {
   color: var(--muted);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+/* The share code is the thing people read out loud — box it so it reads as
+   a value rather than prose, and keep the digits from dancing. */
+.top-code {
+  letter-spacing: 0.12em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.top-by {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .live-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   display: inline-block;
+  flex: 0 0 auto;
 }
 
 .live-dot.on {
@@ -322,9 +414,13 @@ body {
 
 /* ---------- summary ---------- */
 
+/* The counts sit straight on the page as their own buttons; whichever one is
+   open drops its detail into a card underneath. */
 .summary {
   margin-bottom: 14px;
-  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .stats {
@@ -341,22 +437,23 @@ body {
 }
 
 .stat-btn {
-  background: none;
-  border: none;
+  background: var(--card);
+  border: 1px solid var(--border);
   font-family: inherit;
   color: inherit;
-  padding: 4px 2px;
-  border-radius: 10px;
+  padding: 7px 2px;
+  border-radius: var(--radius-control);
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.stat-btn .stat-label {
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
+.stat-btn:hover {
+  background: var(--card-2);
 }
 
 .stat-btn.active {
   background: var(--card-2);
+  border-color: var(--accent);
 }
 
 .stat-btn.active .stat-label {
@@ -364,16 +461,17 @@ body {
 }
 
 .summary-detail {
-  margin: 10px 0 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  margin: 0;
+  padding: 12px 16px;
   max-height: 210px;
   overflow-y: auto;
 }
 
 .stat-value {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .stat-value.ok {
@@ -406,6 +504,7 @@ body {
   aspect-ratio: 1 / 1;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  background: var(--canvas);
   overflow: hidden;
   touch-action: none;
 }
@@ -472,15 +571,15 @@ body {
   position: absolute;
   transform: translate(-50%, -50%);
   border: 2px dashed var(--accent);
-  border-radius: 10px;
-  background: rgba(79, 140, 255, 0.14);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   pointer-events: none;
   z-index: 4;
 }
 
 .rtable-ghost.invalid {
   border-color: var(--red);
-  background: rgba(239, 85, 99, 0.16);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
 }
 
 .zoom-controls {
@@ -512,9 +611,10 @@ body {
 .rtable {
   position: absolute;
   transform: translate(-50%, -50%);
-  background: var(--card-2);
-  border: 2px solid var(--border);
-  border-radius: 10px;
+  background: var(--card);
+  border: 1.5px solid var(--border-2);
+  border-radius: 12px;
+  box-shadow: var(--table-shadow);
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
@@ -534,8 +634,10 @@ body {
 }
 
 .rtable.released {
-  opacity: 0.45;
+  opacity: 0.65;
+  background: transparent;
   border-style: dashed;
+  box-shadow: none;
 }
 
 .rtable.stolen {
@@ -546,20 +648,23 @@ body {
 
 .rtable.dragging {
   z-index: 5;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-float);
 }
 
+/* The label notches into the table's top edge, so it sits on the canvas
+   colour rather than the page background. */
 .rtable-tag {
   position: absolute;
-  top: -11px;
-  left: 8px;
+  top: -10px;
+  left: 12px;
   z-index: 1;
-  background: var(--bg);
+  background: var(--canvas);
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 8px;
   border-radius: 999px;
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -596,17 +701,20 @@ body {
   pointer-events: none;
   background: repeating-linear-gradient(
     45deg,
-    rgba(239, 85, 99, 0.22) 0,
-    rgba(239, 85, 99, 0.22) 7px,
+    color-mix(in srgb, var(--red) 22%, transparent) 0,
+    color-mix(in srgb, var(--red) 22%, transparent) 7px,
     transparent 7px,
     transparent 14px
   );
 }
 
+/* Seats are separate rounded tiles with a gap between them, rather than one
+   block cut by dissection lines — the gap reads as the seat boundary. */
 .segments {
   position: absolute;
-  inset: 3px;
+  inset: 6px;
   display: flex;
+  gap: 6px;
   pointer-events: none;
 }
 
@@ -620,48 +728,76 @@ body {
 
 .segment {
   flex: 1;
+  min-width: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  gap: 1px;
+  border-radius: 8px;
   overflow: hidden;
+  /* lets the seat's own box size decide whether the sub-label fits, below */
+  container-type: size;
 }
 
-.segment span {
-  font-size: 15px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+.segment.empty {
+  border: 1.5px dashed var(--border-2);
+}
+
+.seat-name {
+  font-size: 13.5px;
+  font-weight: 700;
   /* the label is fitted to width in JS; keep it to a single line and clip
      as a guard rather than ever wrapping or ellipsising */
   white-space: nowrap;
   max-width: 100%;
   overflow: hidden;
-  padding: 0 2px;
+  padding: 0 3px;
 }
 
-/* the requested dissection lines between seats */
-.segments.srow .segment + .segment {
-  border-left: 2px solid var(--border);
-  border-radius: 0 6px 6px 0;
+/* Solid seat: the person's colour carries the tile, so the name is knocked
+   out in white with a shadow — the palette runs light (lime, amber) as well
+   as dark, and the shadow is what keeps those legible. */
+.segment.taken .seat-name {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
-.segments.srow .segment:not(:last-child) {
-  border-radius: 6px 0 0 6px;
+.segment.empty .seat-name {
+  color: var(--faint);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: lowercase;
 }
 
-.segments.scol .segment + .segment {
-  border-top: 2px solid var(--border);
-  border-radius: 0 0 6px 6px;
+/* A packed table leaves each seat only a few pixels wide — an ETA there would
+   just clip to noise, so the sub-label stays hidden until the seat's own box
+   can hold a second line. Measured against .segment's size container, i.e. in
+   layout pixels, the same basis fitLabel() uses to shorten the name. */
+.seat-sub {
+  display: none;
+  font-size: 10.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 3px;
 }
 
-.segments.scol .segment:not(:last-child) {
-  border-radius: 6px 6px 0 0;
+@container (min-height: 40px) and (min-width: 46px) {
+  .seat-sub {
+    display: block;
+  }
 }
 
-.segment.mine-seat span {
+.segment.taken .seat-sub {
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.segment.mine-seat .seat-name {
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .room-hint {
@@ -750,8 +886,8 @@ body {
 }
 
 .swatch.active {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255, 255, 255, 0.35);
+  border-color: var(--card);
+  box-shadow: 0 0 0 2px var(--text);
 }
 
 /* ---------- steppers ---------- */
@@ -807,7 +943,7 @@ body {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay);
   z-index: 20;
   display: flex;
   align-items: flex-end;
@@ -820,7 +956,7 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-bottom: none;
-  border-radius: 22px 22px 0 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   padding: 10px 18px calc(24px + env(safe-area-inset-bottom));
   animation: sheet-up 0.2s ease-out;
   /* Long sheets scroll inside themselves instead of growing past the screen. */
@@ -849,10 +985,11 @@ body {
   }
 
   .sheet {
-    border-radius: 22px;
+    border-radius: var(--radius);
     border-bottom: 1px solid var(--border);
     padding-bottom: 24px;
     max-height: min(820px, 100%);
+    box-shadow: var(--shadow-float);
   }
 
   .sheet-handle {
@@ -955,7 +1092,7 @@ body {
 .chip.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .time-row {
@@ -968,7 +1105,6 @@ body {
 
 .time-input {
   flex: 1;
-  color-scheme: dark;
 }
 
 /* ---------- groups / idle screen ---------- */
@@ -1096,7 +1232,7 @@ body {
 
 .occupant-btn.danger {
   color: var(--red);
-  border-color: rgba(239, 85, 99, 0.4);
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
 }
 
 .guest-form .link-btn {
@@ -1332,7 +1468,7 @@ body {
   border-radius: 14px;
   font-size: 14.5px;
   max-width: min(420px, calc(100vw - 32px));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-float);
 }
 
 /* ---------- votes ---------- */
@@ -1502,7 +1638,7 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-lift);
   z-index: 15;
 }
 
@@ -1521,9 +1657,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* ring in the page background so the dot reads clearly off the dark button */
+  /* ring in the page background so the dot reads clearly off the button */
   border: 2px solid var(--bg);
-  box-shadow: 0 0 0 1px rgba(239, 85, 99, 0.6), 0 2px 8px rgba(239, 85, 99, 0.5);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--red) 50%, transparent);
   animation: chat-badge-pop 1.8s ease-in-out infinite;
 }
 
@@ -1543,7 +1679,7 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-float);
   overflow: hidden;
   z-index: 15;
 }
@@ -1598,7 +1734,7 @@ body {
   align-self: flex-end;
   border-radius: 12px 12px 4px 12px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .chat-msg-name {

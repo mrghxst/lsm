@@ -76,7 +76,7 @@ flowchart LR
   <tr>
     <td width="50%" valign="top">
       <h3>📲 Installable and notification-ready</h3>
-      LSM is a mobile-first PWA with Web Push for morning setup, room activity, votes, focus timers, and chat.
+      LSM is a mobile-first PWA with Web Push for morning setup, room activity, votes, focus timers, and chat. Light and dark themes follow your device, or pick one yourself.
     </td>
     <td width="50%" valign="top">
       <h3>🥙 Decisions without chat chaos</h3>
@@ -102,8 +102,8 @@ flowchart LR
 
 - Tables are draggable, rotatable in 90° steps, and adjustable from one to eight seats.
 - The room automatically frames the occupied layout while keeping space around the edges.
-- Seats use solid colors for people who are present and outlined colors for people who are coming.
-- Labels choose the fullest name that fits without shrinking the font.
+- Seats use solid colors for people who are present and outlined colors for people who are coming; free seats are outlined and labelled.
+- Labels choose the fullest name that fits without shrinking the font, and add the arrival time underneath when the seat is big enough to hold it.
 - Empty tables can be returned, reclaimed, or marked as taken by people outside the group.
 - A session automatically expires after 28 hours, while its group and members remain available.
 
@@ -221,7 +221,7 @@ flowchart LR
 
 | Layer | Technology | Role |
 |---|---|---|
-| Frontend | React 18, TypeScript, Vite | Mobile-first installable PWA |
+| Frontend | React 18, TypeScript, Vite | Mobile-first installable PWA, light/dark themed from CSS custom properties |
 | Backend | Node.js 24, Express | Authentication, room logic, API and static hosting |
 | Database | SQLite, `better-sqlite3` | Single-file persistence with foreign keys |
 | Realtime | Server-Sent Events | Live room refreshes |

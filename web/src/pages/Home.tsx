@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../AuthContext';
 import { PALETTE } from '../colors';
+import { ThemeToggle } from '../components/ThemeToggle';
 import type { GroupSummary } from '../types';
 
 function GithubLink() {
@@ -203,7 +204,10 @@ export function Home() {
   return (
     <div className="app">
       <header className="page-head">
-        <h1>Learning Space Manager</h1>
+        <div className="page-head-row">
+          <h1>Learning Space Manager</h1>
+          <ThemeToggle />
+        </div>
         <p className="tagline">
           Hi <span className="person-dot inline-dot" style={{ background: user.color }} />
           {user.username}!{' '}
