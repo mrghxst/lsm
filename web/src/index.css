@@ -1619,6 +1619,94 @@ body {
   flex-wrap: wrap;
 }
 
+.admin-blocklist-card > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-blocklist-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(138px, 0.85fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.admin-blocklist-form .btn {
+  grid-column: 1 / -1;
+}
+
+.admin-blocklist-select {
+  cursor: pointer;
+  padding-right: 36px;
+}
+
+.admin-blocklist-help {
+  padding-bottom: 2px;
+}
+
+.admin-empty-rule {
+  min-height: 66px;
+  padding: 12px;
+  border: 1px dashed var(--border-2);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--green) 5%, var(--card));
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--muted);
+}
+
+.admin-empty-rule-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--green) 14%, var(--card));
+  color: var(--green);
+  font-weight: 800;
+}
+
+.admin-empty-rule strong,
+.admin-empty-rule small {
+  display: block;
+}
+
+.admin-empty-rule strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.admin-empty-rule small {
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+
+.admin-blocklist-row {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.admin-rule-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.admin-rule-badge.contains {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+}
+
 .archived-spaces summary {
   cursor: pointer;
   color: var(--muted);
@@ -1675,6 +1763,16 @@ body {
 @media (max-width: 560px) {
   .admin-invite-actions .btn {
     padding-inline: 10px;
+  }
+}
+
+@media (max-width: 400px) {
+  .admin-blocklist-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-blocklist-form .btn {
+    grid-column: auto;
   }
 }
 

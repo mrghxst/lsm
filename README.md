@@ -206,7 +206,9 @@ That keeps the app reachable through the tunnel without exposing port `3000` pub
 New account names and guest reservations use the same case-insensitive name
 policy. It normalizes punctuation, spacing, accents, common Unicode lookalikes
 and leetspeak before checking a maintained English profanity dataset and the
-local list in `server/name-blocklist.json`.
+local list in `server/name-blocklist.json`. Admins can add and remove persistent
+deployment-specific rules immediately from the **Name blocklist** card on
+`/admin`; no restart is needed.
 
 To add deployment-specific entries without rebuilding the image, set
 `NAME_BLOCKLIST_FILE` to a mounted JSON file. It may contain any of these

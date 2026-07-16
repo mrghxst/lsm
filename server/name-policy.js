@@ -5,6 +5,7 @@ import {
   englishDataset,
   englishRecommendedTransformers,
 } from 'obscenity';
+import { db } from './db.js';
 
 const defaultListPath = fileURLToPath(new URL('./name-blocklist.json', import.meta.url));
 const defaultConfig = readConfig(defaultListPath, true);
@@ -107,15 +108,28 @@ function compactForms(value) {
   return new Set([...forms(value)].map((form) => form.replace(/ /g, '')));
 }
 
-function compileConfig() {
+function compileConfig(includeDatabase = true) {
   const extra = externalConfig();
+  const sources = [defaultConfig, extra];
+  if (includeDatabase) sources.push(databaseConfig());
   const combined = {};
-  for (const key of Object.keys(emptyConfig())) combined[key] = [...defaultConfig[key], ...extra[key]];
+  for (const key of Object.keys(emptyConfig())) {
+    combined[key] = sources.flatMap((source) => source[key]);
+  }
   return {
     blockedTerms: new Set(combined.blockedTerms.flatMap((term) => [...compactForms(term)])),
     blockedNames: new Set(combined.blockedNames.flatMap((name) => [...compactForms(name)])),
     allowedProfanityTerms: new Set(combined.allowedProfanityTerms.flatMap((term) => [...compactForms(term)])),
   };
+}
+
+function databaseConfig() {
+  const config = emptyConfig();
+  for (const rule of db.prepare('SELECT value, match_type FROM name_blocklist').all()) {
+    if (rule.match_type === 'contains') config.blockedTerms.push(rule.value);
+    else config.blockedNames.push(rule.value);
+  }
+  return config;
 }
 
 function containsConfiguredBlock(name, config) {
@@ -153,6 +167,13 @@ function containsProfanity(name, config) {
 
 export function isBlockedName(name) {
   const config = compileConfig();
+  return containsConfiguredBlock(name, config) || containsProfanity(name, config);
+}
+
+// Built-in and file-based rules cannot be removed in the admin panel. This
+// check prevents creating a removable-looking duplicate of a protected rule.
+export function isProtectedBlockedName(name) {
+  const config = compileConfig(false);
   return containsConfiguredBlock(name, config) || containsProfanity(name, config);
 }
 
