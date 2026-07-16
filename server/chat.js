@@ -28,9 +28,6 @@ export function chatForState(spaceId) {
       body: m.body,
       createdAt: m.created_at,
     })),
-    // Who hid the unread badge (chat-window switch only; separate from the
-    // chat push preference in space_members.notify_chat).
-    badgeHidden: db.prepare('SELECT user_id FROM chat_mutes WHERE space_id = ?').all(spaceId).map((r) => r.user_id),
   };
 }
 
@@ -100,28 +97,13 @@ chatRouter.post('/', (req, res) => {
 
 // The bell: chat push notifications on/off. This is the same preference as the
 // "Room chat" toggle in space settings (both write notify_chat), so the two
-// always stay in sync. It no longer touches the unread badge — that is the
-// separate switch below.
+// always stay in sync. Unread counting is client-local — the "mark as read"
+// pill on the chat button clears it without any server involvement.
 chatRouter.post('/mute', (req, res) => {
   const space = requireOpenSpace(req, res);
   if (!space) return;
   if (typeof req.body?.muted !== 'boolean') return res.status(400).json({ error: 'muted must be true or false.' });
   db.prepare('UPDATE space_members SET notify_chat = ? WHERE space_id = ? AND user_id = ?')
     .run(req.body.muted ? 0 : 1, space.id, req.user.id);
-  sendUpdate(space, res);
-});
-
-// The unread badge: a chat-window-only switch (deliberately not in settings)
-// that hides the count on the chat button without changing whether you still
-// receive push notifications.
-chatRouter.post('/badge', (req, res) => {
-  const space = requireOpenSpace(req, res);
-  if (!space) return;
-  if (typeof req.body?.hidden !== 'boolean') return res.status(400).json({ error: 'hidden must be true or false.' });
-  if (req.body.hidden) {
-    db.prepare('INSERT OR IGNORE INTO chat_mutes (space_id, user_id) VALUES (?, ?)').run(space.id, req.user.id);
-  } else {
-    db.prepare('DELETE FROM chat_mutes WHERE space_id = ? AND user_id = ?').run(space.id, req.user.id);
-  }
   sendUpdate(space, res);
 });

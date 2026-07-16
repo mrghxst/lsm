@@ -4,13 +4,12 @@ import type { ChatState } from '../types';
 export interface ChatActions {
   sendMessage(text: string): void;
   setChatNotify(enabled: boolean): void;
-  setBadgeHidden(hidden: boolean): void;
 }
 
 // A tiny support-widget-style chat pinned to the bottom-right corner:
-// collapsed it is just a square button (with an unread count unless the badge
-// is switched off), expanded it is a minimal message panel for the people in
-// the room today.
+// collapsed it is just a square button with an unread count (and a ✓ to
+// clear it without opening — like Discord's "mark as read"), expanded it
+// is a minimal message panel for the people in the room today.
 export function RoomChat({
   chat,
   userId,
@@ -27,7 +26,6 @@ export function RoomChat({
   actions: ChatActions;
 }) {
   const { messages } = chat;
-  const badgeHidden = chat.badgeHidden.includes(userId);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   // Unread tracking is local: the id of the newest message this browser saw.
@@ -35,6 +33,11 @@ export function RoomChat({
   const listRef = useRef<HTMLDivElement>(null);
 
   const lastId = messages.length > 0 ? messages[messages.length - 1].id : 0;
+
+  function markRead() {
+    setLastRead(lastId);
+    localStorage.setItem(`lsm-chat-read-${code}`, String(lastId));
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -46,7 +49,7 @@ export function RoomChat({
     if (el) el.scrollTop = el.scrollHeight;
   }, [open, lastId, lastRead, code]);
 
-  const unread = badgeHidden ? 0 : messages.filter((m) => m.id > lastRead && m.userId !== userId).length;
+  const unread = messages.filter((m) => m.id > lastRead && m.userId !== userId).length;
 
   function send() {
     const t = text.trim();
@@ -63,7 +66,19 @@ export function RoomChat({
         <span className="chat-dock-preview">
           {last ? `${last.userId === userId ? 'You' : last.username}: ${last.body}` : 'Say hi to the room 👋'}
         </span>
-        {unread > 0 && <span className="chat-dock-badge">{unread > 9 ? '9+' : unread}</span>}
+        {unread > 0 && (
+          <span
+            className="chat-dock-badge"
+            role="button"
+            title="Mark as read"
+            onClick={(e) => {
+              e.stopPropagation();
+              markRead();
+            }}
+          >
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
       </button>
     );
   }
@@ -78,13 +93,6 @@ export function RoomChat({
           onClick={() => actions.setChatNotify(!notifyChat)}
         >
           {notifyChat ? '🔔' : '🔕'}
-        </button>
-        <button
-          className="icon-btn chat-icon"
-          title={badgeHidden ? 'Unread badge off — tap to show the count' : 'Unread badge on — tap to hide the count'}
-          onClick={() => actions.setBadgeHidden(!badgeHidden)}
-        >
-          {badgeHidden ? '⚪' : '🔴'}
         </button>
         <button className="icon-btn chat-icon" aria-label="Close" onClick={() => setOpen(false)}>
           ✕

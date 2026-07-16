@@ -416,9 +416,6 @@ export function Space() {
         } : current);
       }
     },
-    // The unread badge — a chat-only switch, independent of notifications.
-    setBadgeHidden: (hidden: boolean) =>
-      void mutate(`/api/spaces/${code}/chat/badge`, { method: 'POST', body: { hidden } }, { close: false }),
   };
   // Writing needs a seat of your own today; reading is open to anyone here.
   const hasSeat = tables.some((t) => t.claims.some((c) => c.userId === user.id && !c.guestName));

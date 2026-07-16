@@ -299,7 +299,6 @@ DELETE /api/spaces/:code/timers/:id/join       Leave a focus round
 DELETE /api/spaces/:code/timers/:id            Stop or dismiss a focus round
 POST   /api/spaces/:code/chat                  Send a room message
 POST   /api/spaces/:code/chat/mute             Toggle chat push notifications (mirrors Settings)
-POST   /api/spaces/:code/chat/badge            Show or hide your unread badge (chat window only)
 GET    /api/menus                              Read today's cached menus
 ```
 

@@ -1933,6 +1933,30 @@ body {
   flex: 0 0 auto;
 }
 
+/* "Mark as read" pill floating left of the chat button while unread > 0 —
+   clears the count without opening the chat, like Discord's mark-as-read. */
+.chat-mark-read {
+  position: fixed;
+  right: 76px;
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 650;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  z-index: 15;
+}
+
+.chat-mark-read:active {
+  color: var(--text);
+}
+
 .chat-panel {
   position: fixed;
   right: 12px;

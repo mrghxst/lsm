@@ -120,13 +120,11 @@ export interface ChatMessage {
   createdAt: number;
 }
 
-// Session-scoped room chat. badgeHidden lists users who turned off the unread
-// badge — a chat-window-only switch that does not affect push notifications
-// (those follow the space's chat notification preference). The log is wiped
-// when the session ends.
+// Session-scoped room chat. Unread tracking is client-local ("mark as read"
+// just moves the local pointer); push notifications follow the space's chat
+// notification preference. The log is wiped when the session ends.
 export interface ChatState {
   messages: ChatMessage[];
-  badgeHidden: number[];
 }
 
 export interface Meal {
