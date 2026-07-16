@@ -149,7 +149,7 @@ function VoteCard({
         <p className="sheet-label">{vote.title}</p>
         <span className="vote-total">{totalBallots === 1 ? '1 vote' : `${totalBallots} votes`}</span>
         {canRemove && (
-          <button className="occupant-btn danger" title="Remove this vote" onClick={() => actions.removeVote(vote.id)}>
+          <button className="quiet-x" title="Remove this vote" onClick={() => actions.removeVote(vote.id)}>
             ✕
           </button>
         )}
@@ -162,7 +162,7 @@ function VoteCard({
               onClick={() => actions.castBallot(vote.id, o.id === myOptionId ? null : o.id)}
             >
               <span className="vote-opt-top">
-                <span className="vote-check">{o.id === myOptionId ? '✅' : '⬜'}</span>
+                <span className="vote-check" />
                 <span className="vote-label">{o.label}</span>
                 <span className="voter-dots">
                   {o.voters.map((v) => (
@@ -181,16 +181,16 @@ function VoteCard({
             {o.facilityId !== null &&
               (menus?.find((m) => m.facilityId === o.facilityId)?.status === 'closed' ? (
                 // known closed today — nothing to expand, just say so
-                <span className="occupant-btn menu-closed" title="Closed today">
-                  🌙
+                <span className="vote-menu-btn closed" title="No service today">
+                  Closed
                 </span>
               ) : (
                 <button
-                  className="occupant-btn"
+                  className={`vote-menu-btn${openMenu === o.id ? ' open' : ''}`}
                   title="Today's menu"
                   onClick={() => setOpenMenu(openMenu === o.id ? null : o.id)}
                 >
-                  {openMenu === o.id ? '▴' : 'ℹ️'}
+                  Menu
                 </button>
               ))}
           </div>
@@ -272,7 +272,7 @@ export function VoteSheet({
       <div className="stack">
           {!hasLunchVote && (
             <button className="btn btn-secondary" onClick={() => actions.startLunchVote()}>
-              🍽️ Where to eat lunch today?
+              Where to eat lunch today?
             </button>
           )}
           {state.votes.map((v) => (
@@ -303,7 +303,7 @@ export function VoteSheet({
                 disabled={newOptions.length >= 12}
                 onClick={() => setNewOptions((opts) => [...opts, ''])}
               >
-                ➕ Option
+                + Option
               </button>
               <button className="btn btn-primary btn-compact vote-create-btn" disabled={!canCreate} onClick={create}>
                 Start vote

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SpaceState } from '../types';
-import { claimColor, etaLabel, formatClock, formatDuration } from '../util';
+import { claimColor, etaLabel, formatDuration } from '../util';
 import { useNowMinute } from '../useNow';
 
 type DetailKey = 'here' | 'coming' | 'free';
@@ -24,29 +24,20 @@ export function SummaryBar({ state, onAddTable }: { state: SpaceState; onAddTabl
 
   const toggle = (key: DetailKey) => setDetail((d) => (d === key ? null : key));
 
-  // Same row shape as the People card in the sidebar — the two show the same
-  // thing and shouldn't look like two different lists.
-  const personRow = (p: (typeof rows)[number], meta: string) => {
-    const color = claimColor(p);
-    const name = p.guestName ?? p.username;
-    const avatar =
-      p.status === 'arrived'
-        ? { background: color, color: '#fff' }
-        : { boxShadow: `inset 0 0 0 2px ${color}`, color };
-    return (
-      <li key={p.id}>
-        <span className="person-avatar" style={avatar}>
-          {name.trim().charAt(0).toUpperCase()}
-        </span>
-        <span className="person-name">
-          {name}
-          {p.guestName && <span className="occupant-sub"> · friend of {p.username}</span>}
-        </span>
-        <span className="person-table">{p.tableLabel.replace(/^Table\s+/i, 'T')}</span>
-        <span className="person-eta">{meta}</span>
-      </li>
-    );
-  };
+  // A count's list is its own row shape: a colour dot rather than the People
+  // card's lettered avatar, and the table it belongs to as a pill. The two
+  // lists sit far apart on screen and answer different questions.
+  const personRow = (p: (typeof rows)[number], meta: string) => (
+    <li key={p.id}>
+      <span className="person-dot" style={{ background: claimColor(p) }} />
+      <span className="person-name">
+        {p.guestName ?? p.username}
+        {p.guestName && <span className="occupant-sub"> · guest of {p.username}</span>}
+      </span>
+      <span className="person-table">{p.tableLabel.replace(/^Table\s+/i, 'T')}</span>
+      <span className="person-eta">{meta}</span>
+    </li>
+  );
 
   return (
     <div className="summary">
@@ -72,9 +63,7 @@ export function SummaryBar({ state, onAddTable }: { state: SpaceState; onAddTabl
       {detail === 'here' && (
         <ul className="people-list summary-detail card">
           {arrived.length === 0 && <li className="hint">Nobody has arrived yet.</li>}
-          {arrived.map((p) =>
-            personRow(p, p.arrivedAt ? `since ${formatClock(p.arrivedAt)} · ${formatDuration(p.arrivedAt, now)}` : 'here'),
-          )}
+          {arrived.map((p) => personRow(p, p.arrivedAt ? `here · ${formatDuration(p.arrivedAt, now)}` : 'here'))}
         </ul>
       )}
 
@@ -88,9 +77,10 @@ export function SummaryBar({ state, onAddTable }: { state: SpaceState; onAddTabl
       {detail === 'free' && (
         <ul className="people-list summary-detail card">
           {freeByTable.length === 0 && <li className="hint">Every seat is taken.</li>}
+          {/* No dot and no pill: a free seat has no colour and the row already
+              names its table, so it stands on the name alone. */}
           {freeByTable.map((t) => (
             <li key={t.id}>
-              <span className="person-avatar empty">{t.free}</span>
               <span className="person-name">{t.label}</span>
               <span className="person-eta">
                 {t.free} of {t.capacity} {t.capacity === 1 ? 'seat' : 'seats'} free

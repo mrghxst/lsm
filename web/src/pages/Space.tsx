@@ -263,7 +263,7 @@ export function Space() {
             <h2 className="idle-title">Nothing set up today</h2>
             <p className="hint idle-hint">
               First one there? Reserve the tables in the room, then set them up here — everyone in the group
-              {pushOn ? ' gets notified.' : ' gets notified (turn on the 🔔 above to get yours).'}
+              {pushOn ? ' gets notified.' : ' gets notified (switch Notifications on above to get yours).'}
             </p>
           </div>
           <div className="card stack">

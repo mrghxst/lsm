@@ -171,7 +171,7 @@ export function Admin() {
               </div>
             ))}
             <button className="btn btn-secondary" onClick={() => void generateInvite()}>
-              ➕ Generate invite code
+              + Generate invite code
             </button>
           </div>
 

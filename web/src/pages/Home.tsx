@@ -247,7 +247,7 @@ export function Home() {
         )}
 
         <Link to="/new" className="btn btn-primary btn-link">
-          ➕ Create a space
+          + Create a space
         </Link>
 
         <form className="card stack" onSubmit={submitJoin}>

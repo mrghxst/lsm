@@ -66,13 +66,13 @@ export function ClaimSheet({
         <p className="sheet-status">
           {myClaimHere.status === 'arrived'
             ? myClaimHere.arrivedAt
-              ? `You're at this table since ${formatClock(myClaimHere.arrivedAt)} (${formatDuration(myClaimHere.arrivedAt, now)}). 🎉`
-              : "You're at this table. 🎉"
+              ? `You're at this table since ${formatClock(myClaimHere.arrivedAt)} (${formatDuration(myClaimHere.arrivedAt, now)}).`
+              : "You're at this table."
             : `You're coming ${myClaimHere.eta === 'now' ? 'right now' : `at ${myClaimHere.eta}`}.`}
         </p>
         {myClaimHere.status === 'coming' && (
           <button className="btn btn-primary" onClick={() => actions.updateClaim(myClaimHere.id, { status: 'arrived' })}>
-            ✅ I've arrived
+            I've arrived
           </button>
         )}
         {myClaimHere.status === 'coming' &&
@@ -85,7 +85,7 @@ export function ClaimSheet({
             </>
           ) : (
             <button className="btn btn-secondary" onClick={() => setEditingTime(true)}>
-              🕐 Change arrival time
+              Change arrival time
             </button>
           ))}
         {leaveMode ? (
@@ -127,7 +127,7 @@ export function ClaimSheet({
         <EtaPicker value={eta} onChange={setEta} />
         {myOtherTable && <p className="hint">You'll move here from {myOtherTable.label}.</p>}
         <button className="btn btn-primary" onClick={() => actions.join(table.id, eta, seat)}>
-          {eta === 'now' ? "🪑 I'm here now" : `🪑 I'll be there ${etaLabel(eta)}`}
+          {eta === 'now' ? "I'm here now" : `I'll be there ${etaLabel(eta)}`}
         </button>
       </>
     );
@@ -237,11 +237,11 @@ export function ClaimSheet({
           {!guestMode && !bookMode && showGuestButton && (
             <>
               <button className="btn btn-secondary" onClick={() => setGuestMode(true)}>
-                👋 Reserve a seat for a friend
+                Reserve a seat for a friend
               </button>
               {isAdmin && otherMembers.length > 0 && (
                 <button className="btn btn-secondary" onClick={() => setBookMode(true)}>
-                  🎟️ Book for someone else
+                  Book for someone else
                 </button>
               )}
             </>
@@ -264,7 +264,7 @@ export function ClaimSheet({
                       {c.status === 'arrived'
                         ? c.arrivedAt
                           ? `here · ${formatDuration(c.arrivedAt, now)}`
-                          : 'here 🎉'
+                          : 'here'
                         : etaLabel(c.eta)}
                     </span>
                     {canManage && c.status === 'coming' && (
@@ -318,7 +318,7 @@ export function ClaimSheet({
               )}
               {table.claims.length === 0 && !table.stolen && (
                 <button className="btn btn-secondary" onClick={() => actions.setStolen(table.id, true)}>
-                  🚩 Taken by others
+                  Taken by others
                 </button>
               )}
             </div>

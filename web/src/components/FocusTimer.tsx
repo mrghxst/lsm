@@ -84,7 +84,7 @@ export function FocusTimerCard({
     };
     return (
       <div className="card stack timer-card">
-        <h2 className="section-title">Focus together</h2>
+        <span className="card-label">Focus together</span>
         <p className="hint timer-hint">Start a round — everyone here gets invited to focus with you.</p>
         <div className="timer-presets">
           {PRESETS.map((m) => (
@@ -101,7 +101,7 @@ export function FocusTimerCard({
               setUntilOpen(false);
             }}
           >
-            ✎<small>own</small>
+            Custom
           </button>
           <button
             className={`chip timer-preset${untilOpen ? ' active' : ''}`}
@@ -111,7 +111,7 @@ export function FocusTimerCard({
               setCustomOpen(false);
             }}
           >
-            🕐<small>until</small>
+            Until
           </button>
         </div>
         {customOpen && (
@@ -201,7 +201,6 @@ export function FocusTimerCard({
               transform="rotate(-90 32 32)"
             />
           </svg>
-          {finished && <span className="timer-emoji">🎉</span>}
         </div>
 
         <div className="timer-body">
@@ -226,7 +225,7 @@ export function FocusTimerCard({
 
         {canStop && (
           <button
-            className="timer-stop"
+            className="quiet-x"
             title={finished ? 'Dismiss' : 'Stop the timer for everyone'}
             aria-label={finished ? 'Dismiss' : 'Stop the timer for everyone'}
             onClick={() => {
@@ -241,14 +240,14 @@ export function FocusTimerCard({
       {!finished &&
         (joined ? (
           <div className="timer-foot">
-            <span className="timer-in">You're in ✓</span>
+            <span className="timer-in">You're in</span>
             <button className="btn btn-secondary btn-compact" onClick={() => actions.leaveTimer(timer.id)}>
               Leave
             </button>
           </div>
         ) : joinOpen ? (
           <button className="btn btn-primary" onClick={() => actions.joinTimer(timer.id)}>
-            🔥 Join this round
+            Join this round
           </button>
         ) : null)}
     </div>
