@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { db } from './db.js';
 import { colorFor, isValidColor } from './colors.js';
+import { BLOCKED_NAME_ERROR, isBlockedName } from './name-policy.js';
 
 const TOKEN_TTL_SECONDS = 90 * 24 * 3600;
 
@@ -101,6 +102,12 @@ authRouter.post('/session', (req, res) => {
     applyAdminGrant(existing);
     setSessionCookie(req, res, existing.id);
     return res.json({ user: publicUser(existing), created: false });
+  }
+
+  // Apply the policy only to new registrations. Existing accounts are not
+  // unexpectedly locked out when the list is updated.
+  if (isBlockedName(username)) {
+    return res.status(400).json({ error: BLOCKED_NAME_ERROR });
   }
 
   // New accounts need a one-time invite code from an admin. Two bootstrap

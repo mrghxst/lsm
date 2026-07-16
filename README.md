@@ -199,6 +199,30 @@ That keeps the app reachable through the tunnel without exposing port `3000` pub
 | `PORT` | `3000` | Express HTTP port |
 | `DATA_DIR` | `./data` | SQLite database and generated VAPID keys |
 | `ADMIN_USERNAME` | — | Grants the matching account access to `/admin` |
+| `NAME_BLOCKLIST_FILE` | — | Optional absolute path to an extra name-policy JSON file; changes are picked up automatically |
+
+### Name policy
+
+New account names and guest reservations use the same case-insensitive name
+policy. It normalizes punctuation, spacing, accents, common Unicode lookalikes
+and leetspeak before checking a maintained English profanity dataset and the
+local list in `server/name-blocklist.json`.
+
+To add deployment-specific entries without rebuilding the image, set
+`NAME_BLOCKLIST_FILE` to a mounted JSON file. It may contain any of these
+optional arrays:
+
+```json
+{
+  "blockedTerms": ["word blocked even inside a longer name"],
+  "blockedNames": ["exact full name"],
+  "allowedProfanityTerms": ["legitimate name exception"]
+}
+```
+
+The external entries extend the built-in list and are reloaded when the file
+changes. Existing accounts can still sign in after policy updates; the policy
+applies when registering a new account or reserving a new guest.
 
 <a id="architecture"></a>
 
