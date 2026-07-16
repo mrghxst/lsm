@@ -810,9 +810,11 @@ body {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-  /* glide when the window reframes (add/remove/move); off mid-drag, see below */
+  /* Glide when the window reframes (add/remove/move); off mid-drag, see below.
+     Height is set explicitly (not implied by a ratio), so it has to glide
+     alongside width or a reframe squashes the table on its way. */
   transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1), height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .rtable.dragging,
@@ -1546,16 +1548,15 @@ body {
   }
 
   .space-layout .room {
-    /* Height-driven on desktop, but the same square shape as mobile. The
-       canvas MUST stay square: a table's size comes from the room's width
-       (its cells are a % of it) while its position comes from the room's
-       height, so any other ratio pulls those two units apart — tables stop
-       landing flush against each other and drift off the grid lines. */
+    /* Takes the whole work area. The canvas need not be square — Room.tsx
+       keeps the window's CELLS square instead and flanks the framing with
+       extra board along the room's longer axis, so tables still meet flush.
+       Never give a table a size on one axis and a position on the other
+       without that: it is what pulled them apart before. */
     height: 100%;
-    width: auto;
-    aspect-ratio: 1 / 1;
-    max-width: 100%;
-    align-self: center;
+    width: 100%;
+    aspect-ratio: auto;
+    align-self: stretch;
   }
 }
 

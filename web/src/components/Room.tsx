@@ -88,6 +88,38 @@ interface Win {
   side: number; // window size in cells; the canvas shows side x side squares
 }
 
+// What the canvas actually shows. The framing above is reasoned about as a
+// square (it is the block plus its air, and it is what the camera maths
+// scales by), but the room element is rarely square — on a desktop it is a
+// wide rectangle. Stretching the square window across it would make a cell
+// wider than it is tall, and a table takes its width from one axis and its
+// height from the other, so its two halves would disagree and tables would
+// stop meeting flush.
+//
+// Instead the window keeps square CELLS and gets more of them along the
+// room's longer axis: the square is preserved on the short axis and the long
+// axis is padded with extra board, centred. cellPx = roomW/sideX = roomH/sideY
+// by construction, so a cell is square at any room shape.
+interface DisplayWin {
+  c0: number;
+  r0: number;
+  sideX: number;
+  sideY: number;
+}
+
+function displayWin(win: Win, aspect: number): DisplayWin {
+  const kx = Math.max(1, aspect);
+  const ky = Math.max(1, 1 / aspect);
+  const sideX = win.side * kx;
+  const sideY = win.side * ky;
+  return {
+    c0: win.c0 - (sideX - win.side) / 2,
+    r0: win.r0 - (sideY - win.side) / 2,
+    sideX,
+    sideY,
+  };
+}
+
 const HOME_WIN: Win = { c0: (CELLS - HOME_SIDE) / 2, r0: (CELLS - HOME_SIDE) / 2, side: HOME_SIDE };
 
 // The smallest square window with FRAME_CELLS of air on every side of the
@@ -134,24 +166,26 @@ function unionWin(a: Win, b: Win): Win {
 const idsOf = (ts: Table[]) => ts.map((t) => t.id).sort((a, b) => a - b).join(',');
 
 // board fraction -> % of the canvas (which shows exactly the window)
-function winLeft(win: Win, bx: number) {
-  return ((bx * CELLS - win.c0) / win.side) * 100;
+function winLeft(d: DisplayWin, bx: number) {
+  return ((bx * CELLS - d.c0) / d.sideX) * 100;
 }
 
-function winTop(win: Win, by: number) {
-  return ((by * CELLS - win.r0) / win.side) * 100;
+function winTop(d: DisplayWin, by: number) {
+  return ((by * CELLS - d.r0) / d.sideY) * 100;
 }
 
-// Keep a dragged table fully inside the visible window.
-function clampToWin(x: number, y: number, rot: 0 | 90, win: Win) {
+// Keep a dragged table fully inside the visible window — and on the board,
+// since a wide window can show space past the board's edge.
+function clampToWin(x: number, y: number, rot: 0 | 90, d: DisplayWin) {
   const hw = (rot === 0 ? 1 : 0.5) * GRID_CELL;
   const hh = (rot === 0 ? 0.5 : 1) * GRID_CELL;
-  const left = win.c0 * GRID_CELL;
-  const top = win.r0 * GRID_CELL;
-  const span = win.side * GRID_CELL;
+  const left = Math.max(0, d.c0) * GRID_CELL;
+  const right = Math.min(CELLS, d.c0 + d.sideX) * GRID_CELL;
+  const top = Math.max(0, d.r0) * GRID_CELL;
+  const bottom = Math.min(CELLS, d.r0 + d.sideY) * GRID_CELL;
   return {
-    x: Math.min(left + span - hw, Math.max(left + hw, x)),
-    y: Math.min(top + span - hh, Math.max(top + hh, y)),
+    x: Math.min(right - hw, Math.max(left + hw, x)),
+    y: Math.min(bottom - hh, Math.max(top + hh, y)),
   };
 }
 
@@ -310,6 +344,12 @@ export function Room({
   const [win, setWin] = useState<Win>(() => windowFor(tables));
   const winRef = useRef(win);
   winRef.current = win;
+  // The room's shape decides how much extra board flanks the square framing.
+  // Tracked rather than assumed, so the canvas refills correctly when the
+  // window is resized or the sidebar wraps away.
+  const [aspect, setAspect] = useState(1);
+  const aspectRef = useRef(aspect);
+  aspectRef.current = aspect;
   const prevIds = useRef(idsOf(tables));
   // glide: transform transitions on for a programmatic reframe.
   // frozen: all transitions off for one commit, for invisible canvas growth.
@@ -332,11 +372,17 @@ export function Room({
     if (sameWin(cur, next)) return;
     const rect = outerRef.current?.getBoundingClientRect();
     if (rect && rect.width > 0) {
+      // Cancel the window change in display space — that is what the canvas
+      // is laid out in, so compensating in the square framing would leave a
+      // visible jolt once the framing is flanked by extra board.
+      const a = aspectRef.current;
+      const dc = displayWin(cur, a);
+      const dn = displayWin(next, a);
       const v = viewRef.current;
       setView({
-        scale: (v.scale * next.side) / cur.side,
-        tx: v.tx + CANVAS * rect.width * (v.scale / cur.side) * (next.c0 - cur.c0),
-        ty: v.ty + CANVAS * rect.height * (v.scale / cur.side) * (next.r0 - cur.r0),
+        scale: (v.scale * dn.sideX) / dc.sideX,
+        tx: v.tx + CANVAS * rect.width * (v.scale / dc.sideX) * (dn.c0 - dc.c0),
+        ty: v.ty + CANVAS * rect.height * (v.scale / dc.sideY) * (dn.r0 - dc.r0),
       });
     }
     setWin(next);
@@ -353,13 +399,16 @@ export function Room({
     pulseGlide();
     const rect = outerRef.current?.getBoundingClientRect();
     if (rect && rect.width > 0) {
+      const a = aspectRef.current;
+      const dc = displayWin(cur, a);
+      const dn = displayWin(needed, a);
       const v = viewRef.current;
       setView(
         clampView(
           {
-            scale: (v.scale * needed.side) / cur.side,
-            tx: v.tx + CANVAS * rect.width * (v.scale / cur.side) * (needed.c0 - cur.c0),
-            ty: v.ty + CANVAS * rect.height * (v.scale / cur.side) * (needed.r0 - cur.r0),
+            scale: (v.scale * dn.sideX) / dc.sideX,
+            tx: v.tx + CANVAS * rect.width * (v.scale / dc.sideX) * (dn.c0 - dc.c0),
+            ty: v.ty + CANVAS * rect.height * (v.scale / dc.sideY) * (dn.r0 - dc.r0),
           },
           rect.width,
           rect.height,
@@ -401,6 +450,37 @@ export function Room({
   }, [frozen]);
 
   useEffect(() => () => window.clearTimeout(glideTimer.current), []);
+
+  // The first render can only assume a square room; the real shape is only
+  // knowable once there's a box to measure. Measuring forces a layout, which
+  // fixes the assumed size as a transition's starting point, so the tables
+  // must snap to the corrected window rather than glide — otherwise every
+  // load opens with them visibly un-stretching themselves. Reshaping the
+  // room later (a resize) snaps for the same reason.
+  useLayoutEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect();
+      if (width <= 0 || height <= 0) return;
+      const next = width / height;
+      if (Math.abs(next - aspectRef.current) < 0.001) return;
+      aspectRef.current = next;
+      setFrozen(true);
+      setAspect(next);
+    };
+    measure();
+    // The observer catches reshapes the window never hears about (the sidebar
+    // wrapping away, a sheet opening); the window event covers the ordinary
+    // resize even where observer callbacks are starved by a busy frame.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
 
   function cancelDrag() {
     dragRef.current = null;
@@ -515,13 +595,14 @@ export function Room({
 
   function finalPos(d: DragInfo, e: ReactPointerEvent) {
     const rect = canvasRef.current!.getBoundingClientRect(); // scaled size
-    const w = winRef.current;
-    const span = w.side * GRID_CELL; // board fraction shown across the canvas
+    const dw = displayWin(winRef.current, aspectRef.current);
+    // board fraction shown across each axis of the canvas; the two ratios
+    // agree, because the window's cells are square
     return clampToWin(
-      d.origX + ((e.clientX - d.startX) / rect.width) * span,
-      d.origY + ((e.clientY - d.startY) / rect.height) * span,
+      d.origX + ((e.clientX - d.startX) / rect.width) * (dw.sideX * GRID_CELL),
+      d.origY + ((e.clientY - d.startY) / rect.height) * (dw.sideY * GRID_CELL),
       d.rot,
-      w,
+      dw,
     );
   }
 
@@ -582,18 +663,22 @@ export function Room({
   // half cell. Line thickness in canvas space is the inverse of the camera
   // zoom, so every line renders at exactly one screen pixel at any zoom —
   // uniform, never thinning out or disappearing.
+  const dwin = displayWin(win, aspect);
   const lineW = 1 / view.scale;
   const lineCol = 'var(--grid)';
-  const gc0 = Math.floor(win.c0) - 1;
-  const gr0 = Math.floor(win.r0) - 1;
-  const gridCells = win.side + 4;
+  const gc0 = Math.floor(dwin.c0) - 1;
+  const gr0 = Math.floor(dwin.r0) - 1;
+  // whole cells covering the window plus a margin, so the paper never ends
+  // inside the view; square cells means the two counts differ, not the sizes
+  const gCols = Math.ceil(dwin.sideX) + 4;
+  const gRows = Math.ceil(dwin.sideY) + 4;
   const gridStyle = {
-    left: `${((gc0 - win.c0) / win.side) * 100}%`,
-    top: `${((gr0 - win.r0) / win.side) * 100}%`,
-    width: `${(gridCells / win.side) * 100}%`,
-    height: `${(gridCells / win.side) * 100}%`,
+    left: `${((gc0 - dwin.c0) / dwin.sideX) * 100}%`,
+    top: `${((gr0 - dwin.r0) / dwin.sideY) * 100}%`,
+    width: `${(gCols / dwin.sideX) * 100}%`,
+    height: `${(gRows / dwin.sideY) * 100}%`,
     backgroundImage: `linear-gradient(${lineCol} ${lineW}px, transparent ${lineW}px), linear-gradient(90deg, ${lineCol} ${lineW}px, transparent ${lineW}px)`,
-    backgroundSize: `${(1 / gridCells) * 100}% ${(1 / gridCells) * 100}%`,
+    backgroundSize: `${(1 / gCols) * 100}% ${(1 / gRows) * 100}%`,
   };
 
   return (
@@ -624,10 +709,10 @@ export function Room({
               <div
                 className={`rtable-ghost${spot ? '' : ' invalid'}`}
                 style={{
-                  left: `${winLeft(win, s.x)}%`,
-                  top: `${winTop(win, s.y)}%`,
-                  width: horizontal ? `${200 / win.side}%` : `${100 / win.side}%`,
-                  aspectRatio: horizontal ? '2 / 1' : '1 / 2',
+                  left: `${winLeft(dwin, s.x)}%`,
+                  top: `${winTop(dwin, s.y)}%`,
+                  width: `${((horizontal ? 2 : 1) / dwin.sideX) * 100}%`,
+                  height: `${((horizontal ? 1 : 2) / dwin.sideY) * 100}%`,
                 }}
               />
             );
@@ -647,10 +732,10 @@ export function Room({
                 (live?.id === t.id ? ' dragging' : '')
               }
               style={{
-                left: `${winLeft(win, pos.x)}%`,
-                top: `${winTop(win, pos.y)}%`,
-                width: horizontal ? `${200 / win.side}%` : `${100 / win.side}%`,
-                aspectRatio: horizontal ? '2 / 1' : '1 / 2',
+                left: `${winLeft(dwin, pos.x)}%`,
+                top: `${winTop(dwin, pos.y)}%`,
+                width: `${((horizontal ? 2 : 1) / dwin.sideX) * 100}%`,
+                height: `${((horizontal ? 1 : 2) / dwin.sideY) * 100}%`,
               }}
               onPointerDown={(e) => onPointerDown(e, t)}
               onPointerMove={onPointerMove}
