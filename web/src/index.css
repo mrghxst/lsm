@@ -581,12 +581,15 @@ body {
   gap: 8px;
 }
 
+/* Same height as .add-table-btn beside it: sizing to content instead left the
+   chips 39.6px against its 40px, half a pixel out of line all along the row. */
 .stat-btn {
+  height: 40px;
   background: var(--card);
   border: 1px solid var(--border);
   font-family: inherit;
   color: inherit;
-  padding: 8px 14px;
+  padding: 0 14px;
   border-radius: var(--radius-control);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -627,14 +630,13 @@ body {
 /* The open count's list: name on the left, where and when on the right, so a
    glance down the column answers "who" and a glance across answers "when".
    Doubled up on .people-list, which it also carries and which would otherwise
-   win on source order and flatten the padding and gap back out. */
+   win on source order and flatten the padding back out. */
 .people-list.summary-detail {
   margin: 0;
   padding: 12px 16px;
   border-radius: 12px;
   max-height: 240px;
   overflow-y: auto;
-  gap: 9px;
 }
 
 /* Smaller than the pledge list's: here the dot only has to tie the row to a
@@ -644,10 +646,12 @@ body {
   height: 10px;
 }
 
-/* The pill belongs to the name — it says which table THAT person is at — so
-   the name stays its own width and only the time is thrown to the far edge. */
-.summary-detail .person-name {
-  flex: 0 1 auto;
+/* "Where" and "when" hold one right-hand column each, so the pills line up
+   under each other instead of trailing names of every length across the row.
+   The time needs a floor to be a column at all: "1h 00m" is narrower than
+   "26h 46m", and right-aligning alone would walk the pill beside it. */
+.summary-detail .person-eta {
+  min-width: 88px;
 }
 
 .stat-value {
