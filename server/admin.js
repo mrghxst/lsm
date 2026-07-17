@@ -4,6 +4,7 @@ import { db } from './db.js';
 import { requireAuth, requireAdmin } from './auth.js';
 import { colorFor } from './colors.js';
 import { deleteSpace } from './spaces.js';
+import { isProtectedBlockedName } from './name-policy.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth, requireAdmin);
@@ -39,6 +40,12 @@ adminRouter.get('/overview', (req, res) => {
     LEFT JOIN users u ON u.id = i.used_by
     ORDER BY (i.used_at IS NULL) DESC, i.created_at DESC
   `).all();
+  const blockedNames = db.prepare(`
+    SELECT b.id, b.value, b.match_type, b.created_at, u.username AS created_by_name
+    FROM name_blocklist b
+    LEFT JOIN users u ON u.id = b.created_by
+    ORDER BY b.created_at DESC, b.id DESC
+  `).all();
   res.json({
     users: users.map((u) => ({
       id: u.id,
@@ -65,7 +72,58 @@ adminRouter.get('/overview', (req, res) => {
       usedAt: i.used_at,
       usedByName: i.used_by_name,
     })),
+    blockedNames: blockedNames.map((b) => ({
+      id: b.id,
+      value: b.value,
+      matchType: b.match_type,
+      createdAt: b.created_at,
+      createdByName: b.created_by_name,
+    })),
   });
+});
+
+// Add a deployment-specific rule. "exact" is the safe default; "contains"
+// also blocks the term inside longer names and therefore requires 3+ chars.
+adminRouter.post('/blocklist', (req, res) => {
+  const value = String(req.body?.value ?? '').trim().replace(/\s+/g, ' ');
+  const matchType = req.body?.matchType ?? 'exact';
+  if (value.length < 2 || value.length > 20 || !/[\p{Letter}\p{Number}]/u.test(value)) {
+    return res.status(400).json({ error: 'Name rule must be 2–20 characters and include a letter or number.' });
+  }
+  if (!['exact', 'contains'].includes(matchType)) {
+    return res.status(400).json({ error: 'Choose exact-name or contains-term matching.' });
+  }
+  if (matchType === 'contains' && value.length < 3) {
+    return res.status(400).json({ error: 'Contains-term rules must be at least 3 characters.' });
+  }
+  if (isProtectedBlockedName(value)) {
+    return res.status(409).json({ error: 'That name is already covered by the protected safety list.' });
+  }
+
+  try {
+    const info = db.prepare(`
+      INSERT INTO name_blocklist (value, match_type, created_by) VALUES (?, ?, ?)
+    `).run(value, matchType, req.user.id);
+    const rule = db.prepare('SELECT * FROM name_blocklist WHERE id = ?').get(info.lastInsertRowid);
+    res.status(201).json({
+      id: rule.id,
+      value: rule.value,
+      matchType: rule.match_type,
+      createdAt: rule.created_at,
+      createdByName: req.user.username,
+    });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'That rule is already in the blocklist.' });
+    }
+    throw error;
+  }
+});
+
+adminRouter.delete('/blocklist/:id', (req, res) => {
+  const info = db.prepare('DELETE FROM name_blocklist WHERE id = ?').run(req.params.id);
+  if (info.changes === 0) return res.status(404).json({ error: 'Blocklist rule not found.' });
+  res.json({ ok: true });
 });
 
 // Mint a one-time registration code to hand to a new member.

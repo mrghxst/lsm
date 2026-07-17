@@ -96,6 +96,18 @@ CREATE TABLE IF NOT EXISTS invite_codes (
   used_at INTEGER
 );
 
+-- Extra inappropriate-name rules managed live from the admin panel. Built-in
+-- and optional file-based rules live in name-policy.js; these rows are the
+-- removable deployment-specific layer.
+CREATE TABLE IF NOT EXISTS name_blocklist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  value TEXT NOT NULL COLLATE NOCASE,
+  match_type TEXT NOT NULL DEFAULT 'exact' CHECK (match_type IN ('exact', 'contains')),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(value, match_type)
+);
+
 -- Everyone who held a seat at some point during the current session, kept
 -- so the end-of-session "sign up for tomorrow" reminder also reaches people
 -- who already left. Cleared when the next session opens.
