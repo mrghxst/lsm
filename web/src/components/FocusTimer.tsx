@@ -94,7 +94,7 @@ export function FocusTimerCard({
             </button>
           ))}
           <button
-            className={`chip timer-preset${customOpen ? ' active' : ''}`}
+            className={`chip timer-preset timer-preset-word${customOpen ? ' active' : ''}`}
             title="Custom length"
             onClick={() => {
               setCustomOpen(!customOpen);
@@ -102,9 +102,10 @@ export function FocusTimerCard({
             }}
           >
             Custom
+            <small>length</small>
           </button>
           <button
-            className={`chip timer-preset${untilOpen ? ' active' : ''}`}
+            className={`chip timer-preset timer-preset-word${untilOpen ? ' active' : ''}`}
             title="Run until a set time"
             onClick={() => {
               setUntilOpen(!untilOpen);
@@ -112,6 +113,7 @@ export function FocusTimerCard({
             }}
           >
             Until
+            <small>time</small>
           </button>
         </div>
         {customOpen && (

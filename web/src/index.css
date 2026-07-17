@@ -1833,6 +1833,8 @@ body {
 
 .timer-preset {
   flex: 1;
+  /* Without this the word chips keep their content width and outgrow the numbers. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1842,6 +1844,14 @@ body {
   font-size: 17px;
   font-weight: 700;
   line-height: 1.1;
+}
+
+/* A word carries less optical weight per pixel than a two-digit number, so it
+   sits a touch smaller to match the numbers rather than shout over them. */
+.timer-preset-word {
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .timer-preset small {
