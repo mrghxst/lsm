@@ -12,6 +12,8 @@ export interface TimerActions {
 const PRESETS = [45, 60, 90];
 const MIN_MINUTES = 5;
 const MAX_MINUTES = 240;
+// Past this the badges crowd out the timing facts beside them in the sidebar.
+const MAX_DOTS = 4;
 
 // How many minutes a round must run to end at the given wall-clock time.
 // A time earlier than now means (early) tomorrow — useful around midnight;
@@ -178,15 +180,6 @@ export function FocusTimerCard({
   const totalMin = Math.round(timer.durationS / 60);
   const canStop = finished || canManage || timer.startedBy === userId;
 
-  // Who's in, as a sentence — the round is glanceable, the roster is detail.
-  const names = timer.participants.map((p) => p.username);
-  const roster =
-    names.length === 0
-      ? 'nobody yet'
-      : names.length <= 3
-        ? names.join(', ')
-        : `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
-
   return (
     <div className="card timer-card">
       <div className="timer-row">
@@ -217,12 +210,30 @@ export function FocusTimerCard({
               </>
             )}
           </div>
-          <p className="timer-sub">
-            {finished
-              ? `Nice work${joined ? ' — stretch your legs' : ''}! Anyone can start the next round.`
-              : `${roster} focusing · ${joinOpen ? `join open ${fmt(timer.joinUntil - now)}` : 'join window closed'}`}
-          </p>
-          {!finished && <p className="timer-sub timer-ends">ends {formatClock(timer.endsAt)}</p>}
+          {finished ? (
+            <p className="timer-sub">
+              Nice work{joined ? ' — stretch your legs' : ''}! Anyone can start the next round.
+            </p>
+          ) : (
+            // Who's in is worth a glance, not a sentence: the same colour badge
+            // the room already identifies people by, beside the timing facts.
+            <div className="timer-meta">
+              {timer.participants.length > 0 && (
+                <span className="voter-dots">
+                  {timer.participants.slice(0, MAX_DOTS).map((p) => (
+                    <span key={p.userId} className="person-dot" style={{ background: p.color }} title={p.username} />
+                  ))}
+                  {timer.participants.length > MAX_DOTS && (
+                    <span className="timer-more">+{timer.participants.length - MAX_DOTS}</span>
+                  )}
+                </span>
+              )}
+              <span className="timer-sub">
+                ends {formatClock(timer.endsAt)}
+                {joinOpen && ` · join open ${fmt(timer.joinUntil - now)}`}
+              </span>
+            </div>
+          )}
         </div>
 
         {canStop && (

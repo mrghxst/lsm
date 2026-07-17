@@ -1875,13 +1875,38 @@ body {
 .timer-body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .timer-time-row {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin: 1px 0;
+}
+
+.timer-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.timer-more {
+  flex: 0 0 auto;
+  margin-left: 1px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* One line of timing facts, ellipsised rather than wrapped — .timer-sub asks
+   for an ellipsis but can't get one without this, so it used to wrap the
+   sidebar's narrow card to two ragged lines. The finished card's sentence is
+   meant to wrap, so it stays outside this rule. */
+.timer-meta .timer-sub {
+  white-space: nowrap;
 }
 
 .timer-of {
@@ -1960,6 +1985,7 @@ body {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 .timer-sub {
@@ -1968,11 +1994,6 @@ body {
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.timer-ends {
-  font-size: 11.5px;
-  color: var(--faint);
 }
 
 .timer-foot {
