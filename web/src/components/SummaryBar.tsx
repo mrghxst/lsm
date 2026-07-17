@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import type { SpaceState } from '../types';
-import { claimColor, etaLabel, formatClock, formatDuration } from '../util';
+import { claimColor, etaLabel, formatDuration } from '../util';
 import { useNowMinute } from '../useNow';
 
 type DetailKey = 'here' | 'coming' | 'free';
 
-export function SummaryBar({ state }: { state: SpaceState }) {
+export function SummaryBar({ state, onAddTable }: { state: SpaceState; onAddTable(): void }) {
   const { tables } = state;
   const now = useNowMinute();
   const [detail, setDetail] = useState<DetailKey | null>(null);
@@ -24,8 +24,23 @@ export function SummaryBar({ state }: { state: SpaceState }) {
 
   const toggle = (key: DetailKey) => setDetail((d) => (d === key ? null : key));
 
+  // A count's list is its own row shape: a colour dot rather than the People
+  // card's lettered avatar, and the table it belongs to as a pill. The two
+  // lists sit far apart on screen and answer different questions.
+  const personRow = (p: (typeof rows)[number], meta: string) => (
+    <li key={p.id}>
+      <span className="person-dot" style={{ background: claimColor(p) }} />
+      <span className="person-name">
+        {p.guestName ?? p.username}
+        {p.guestName && <span className="occupant-sub"> · guest of {p.username}</span>}
+      </span>
+      <span className="person-table">{p.tableLabel.replace(/^Table\s+/i, 'T')}</span>
+      <span className="person-eta">{meta}</span>
+    </li>
+  );
+
   return (
-    <div className="card summary">
+    <div className="summary">
       <div className="stats">
         <button className={`stat stat-btn${detail === 'here' ? ' active' : ''}`} onClick={() => toggle('here')}>
           <span className="stat-value ok">{arrived.length}</span>
@@ -39,47 +54,31 @@ export function SummaryBar({ state }: { state: SpaceState }) {
           <span className="stat-value">{freeSeats}</span>
           <span className="stat-label">free seats</span>
         </button>
+        <span className="stats-gap" />
+        <button className="add-table-btn" onClick={onAddTable}>
+          + Add table
+        </button>
       </div>
 
       {detail === 'here' && (
-        <ul className="people-list summary-detail">
+        <ul className="people-list summary-detail card">
           {arrived.length === 0 && <li className="hint">Nobody has arrived yet.</li>}
-          {arrived.map((p) => (
-            <li key={p.id}>
-              <span className="person-dot" style={{ background: claimColor(p) }} />
-              <span className="person-name">
-                {p.guestName ?? p.username}
-                {p.guestName && <span className="occupant-sub"> · friend of {p.username}</span>}
-              </span>
-              <span className="person-table">{p.tableLabel}</span>
-              <span className="person-eta">
-                {p.arrivedAt ? `since ${formatClock(p.arrivedAt)} · ${formatDuration(p.arrivedAt, now)}` : 'here'}
-              </span>
-            </li>
-          ))}
+          {arrived.map((p) => personRow(p, p.arrivedAt ? `here · ${formatDuration(p.arrivedAt, now)}` : 'here'))}
         </ul>
       )}
 
       {detail === 'coming' && (
-        <ul className="people-list summary-detail">
+        <ul className="people-list summary-detail card">
           {coming.length === 0 && <li className="hint">Nobody is on the way right now.</li>}
-          {coming.map((p) => (
-            <li key={p.id}>
-              <span className="person-dot" style={{ background: claimColor(p) }} />
-              <span className="person-name">
-                {p.guestName ?? p.username}
-                {p.guestName && <span className="occupant-sub"> · friend of {p.username}</span>}
-              </span>
-              <span className="person-table">{p.tableLabel}</span>
-              <span className="person-eta">{etaLabel(p.eta)}</span>
-            </li>
-          ))}
+          {coming.map((p) => personRow(p, etaLabel(p.eta)))}
         </ul>
       )}
 
       {detail === 'free' && (
-        <ul className="people-list summary-detail">
+        <ul className="people-list summary-detail card">
           {freeByTable.length === 0 && <li className="hint">Every seat is taken.</li>}
+          {/* No dot and no pill: a free seat has no colour and the row already
+              names its table, so it stands on the name alone. */}
           {freeByTable.map((t) => (
             <li key={t.id}>
               <span className="person-name">{t.label}</span>

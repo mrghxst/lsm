@@ -12,37 +12,66 @@ interface VoteActions {
 }
 
 function leaderOf(vote: Vote): VoteOption | null {
-  let best: VoteOption | null = null;
-  for (const o of vote.options) {
-    if (o.voters.length > 0 && (!best || o.voters.length > best.voters.length)) best = o;
+  let leader: VoteOption | null = null;
+  for (const option of vote.options) {
+    if (option.voters.length === 0) continue;
+    if (!leader || option.voters.length > leader.voters.length) leader = option;
   }
-  return best;
+  return leader;
 }
 
-// The quiet part: one slim chip per running vote showing just the current
-// leader. Everything else lives in the overlay.
-export function VotesBar({ votes, onOpen }: { votes: Vote[]; onOpen(): void }) {
+// The sidebar is deliberately only a status summary. Showing one leader per
+// poll keeps decisions visible without turning the study room into a voting
+// dashboard; choosing an option remains an intentional action in the sheet.
+export function VotesBar({
+  votes,
+  onOpen,
+}: {
+  votes: Vote[];
+  onOpen(): void;
+}) {
+  if (votes.length === 0) {
+    return (
+      <button className="card vote-card vote-summary-card vote-empty" onClick={onOpen}>
+        + Start a vote
+      </button>
+    );
+  }
   return (
-    <div className="vote-bar">
+    <>
       {votes.map((v) => {
-        const lead = leaderOf(v);
+        const total = v.options.reduce((n, o) => n + o.voters.length, 0);
+        const leader = leaderOf(v);
         return (
-          <button key={v.id} className="chip vote-chip" onClick={onOpen}>
-            🗳️ {v.title}:{' '}
-            {lead ? (
-              <>
-                <strong>{lead.label}</strong> · {lead.voters.length}
-              </>
-            ) : (
-              'no votes yet'
-            )}
+          <button
+            key={v.id}
+            className="card vote-card vote-summary-card"
+            onClick={onOpen}
+            aria-label={`Open ${v.title}`}
+          >
+            <span className="card-head">
+              <span className="card-label">{v.title}</span>
+              <span className="vote-summary-meta">
+                {total} {total === 1 ? 'vote' : 'votes'}
+                <span className="vote-summary-arrow" aria-hidden="true">›</span>
+              </span>
+            </span>
+            <span className={`vote-leader${leader ? '' : ' empty'}`}>
+              <span className="vote-leader-result">
+                <span className="vote-label">{leader?.label ?? 'No result yet'}</span>
+                {leader && <span className="vote-count">{leader.voters.length}</span>}
+              </span>
+              <span className="vote-track" aria-hidden="true">
+                <span
+                  className="vote-fill"
+                  style={{ width: leader && total ? `${(leader.voters.length / total) * 100}%` : '0%' }}
+                />
+              </span>
+            </span>
           </button>
         );
       })}
-      <button className="chip vote-chip vote-chip-new" onClick={onOpen}>
-        {votes.length === 0 ? '🗳️ Start a vote' : '+'}
-      </button>
-    </div>
+    </>
   );
 }
 
@@ -120,20 +149,20 @@ function VoteCard({
         <p className="sheet-label">{vote.title}</p>
         <span className="vote-total">{totalBallots === 1 ? '1 vote' : `${totalBallots} votes`}</span>
         {canRemove && (
-          <button className="occupant-btn danger" title="Remove this vote" onClick={() => actions.removeVote(vote.id)}>
+          <button className="quiet-x" title="Remove this vote" onClick={() => actions.removeVote(vote.id)}>
             ✕
           </button>
         )}
       </div>
       {vote.options.map((o) => (
-        <div key={o.id}>
+        <div key={o.id} className="vote-opt-group">
           <div className={`vote-opt${o.id === myOptionId ? ' mine' : ''}`}>
             <button
               className="vote-opt-main"
               onClick={() => actions.castBallot(vote.id, o.id === myOptionId ? null : o.id)}
             >
               <span className="vote-opt-top">
-                <span className="vote-check">{o.id === myOptionId ? '✅' : '⬜'}</span>
+                <span className="vote-check" />
                 <span className="vote-label">{o.label}</span>
                 <span className="voter-dots">
                   {o.voters.map((v) => (
@@ -142,26 +171,28 @@ function VoteCard({
                 </span>
                 <span className="vote-count">{o.voters.length > 0 ? o.voters.length : ''}</span>
               </span>
-              <span className="vote-track">
-                <span
-                  className="vote-fill"
-                  style={{ width: totalBallots > 0 ? `${(o.voters.length / totalBallots) * 100}%` : '0%' }}
-                />
-              </span>
+              {/* A share of nothing is nothing to show: until a ballot is cast
+                  every track is empty, so the row of them reads as an artifact
+                  rather than a result. */}
+              {totalBallots > 0 && (
+                <span className="vote-track">
+                  <span className="vote-fill" style={{ width: `${(o.voters.length / totalBallots) * 100}%` }} />
+                </span>
+              )}
             </button>
             {o.facilityId !== null &&
               (menus?.find((m) => m.facilityId === o.facilityId)?.status === 'closed' ? (
                 // known closed today — nothing to expand, just say so
-                <span className="occupant-btn menu-closed" title="Closed today">
-                  🌙
+                <span className="vote-menu-btn closed" title="No service today">
+                  Closed
                 </span>
               ) : (
                 <button
-                  className="occupant-btn"
+                  className={`vote-menu-btn${openMenu === o.id ? ' open' : ''}`}
                   title="Today's menu"
                   onClick={() => setOpenMenu(openMenu === o.id ? null : o.id)}
                 >
-                  {openMenu === o.id ? '▴' : 'ℹ️'}
+                  Menu
                 </button>
               ))}
           </div>
@@ -243,7 +274,7 @@ export function VoteSheet({
       <div className="stack">
           {!hasLunchVote && (
             <button className="btn btn-secondary" onClick={() => actions.startLunchVote()}>
-              🍽️ Where to eat lunch today?
+              Where to eat lunch today?
             </button>
           )}
           {state.votes.map((v) => (
@@ -274,7 +305,7 @@ export function VoteSheet({
                 disabled={newOptions.length >= 12}
                 onClick={() => setNewOptions((opts) => [...opts, ''])}
               >
-                ➕ Option
+                + Option
               </button>
               <button className="btn btn-primary btn-compact vote-create-btn" disabled={!canCreate} onClick={create}>
                 Start vote

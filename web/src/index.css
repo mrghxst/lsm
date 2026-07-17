@@ -1,16 +1,60 @@
+/* Warm paper light theme by default, deep slate dark under .dark on <html>
+   (set by src/theme.ts, and inline in index.html to avoid a flash).
+   Every surface in the app is painted from these tokens — change them here,
+   not in the rules below. */
 :root {
-  --bg: #0e1116;
-  --card: #171c24;
-  --card-2: #212936;
-  --border: #2c3644;
-  --text: #e8edf4;
-  --muted: #8b98a9;
-  --accent: #4f8cff;
-  --accent-press: #3a76e8;
-  --green: #34c77b;
-  --amber: #f5a623;
-  --red: #ef5563;
-  --radius: 16px;
+  --bg: #f7f6f3;
+  --card: #fff;
+  --card-2: #f1efe9;
+  --border: #e7e4dc;
+  /* stronger border, for shapes that must read against --card (table edges,
+     empty seats) rather than merely divide it */
+  --border-2: #d8d3c6;
+  --text: #1b1d22;
+  --muted: #7c776b;
+  /* third-level text: hints and placeholders that must recede behind --muted */
+  --faint: #b3ada0;
+  --accent: #4353c9;
+  --accent-press: #2f3da8;
+  --on-accent: #fff;
+  --green: #3ba55f;
+  --amber: #a07a0f;
+  --red: #d64545;
+  --grid: rgba(27, 29, 34, 0.045);
+  --canvas: #fff;
+  --table-shadow: 0 2px 10px rgba(27, 29, 34, 0.06);
+  --overlay: rgba(27, 29, 34, 0.35);
+  --shadow-lift: 0 6px 20px rgba(27, 29, 34, 0.1);
+  --shadow-float: 0 14px 44px rgba(27, 29, 34, 0.16);
+  --scheme: light;
+  /* cards and the room canvas; controls and sheets have their own below */
+  --radius: 14px;
+  --radius-control: 10px;
+  --radius-sheet: 18px;
+}
+
+:root.dark {
+  --bg: #0b0e13;
+  --card: #12161d;
+  --card-2: #1a202a;
+  --border: #1b212c;
+  --border-2: #2b3442;
+  --text: #e6eaf1;
+  --muted: #8a93a5;
+  --faint: #5c6678;
+  --accent: #5f9dff;
+  --accent-press: #4a86e8;
+  --on-accent: #0b0e13;
+  --green: #43d17c;
+  --amber: #e2ad34;
+  --red: #ef6b76;
+  --grid: rgba(90, 110, 140, 0.1);
+  --canvas: #0e1219;
+  --table-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --overlay: rgba(0, 0, 0, 0.55);
+  --shadow-lift: 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 14px 44px rgba(0, 0, 0, 0.5);
+  --scheme: dark;
 }
 
 * {
@@ -49,20 +93,198 @@ body {
   padding: 0;
 }
 
+html {
+  /* native controls (time picker, checkboxes, scrollbars) follow the theme */
+  color-scheme: var(--scheme);
+}
+
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.45;
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Space Grotesk carries the numbers that get read at a glance — the stat
+   counts and the focus countdown. Everything else stays in Instrument Sans. */
+.stat-value,
+.timer-time {
+  font-family: 'Space Grotesk', 'Instrument Sans', system-ui, sans-serif;
+}
+
 .app {
-  max-width: 480px;
+  max-width: 520px;
   margin: 0 auto;
   padding: 16px 16px calc(48px + env(safe-area-inset-bottom));
   min-height: 100dvh;
+}
+
+/* ---------- app bar ---------- */
+
+/* Full-bleed chrome above the page: the room and the sidebar scroll under it,
+   so the space's identity and its controls never move. */
+.app-bar {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-bar-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+.app-bar-id {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-bar-name {
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The share code is the thing people read out loud — box it so it reads as a
+   value rather than prose, and keep the digits from dancing. */
+.app-bar-code {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.app-bar-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--green);
+}
+
+.app-bar-live.off {
+  color: var(--amber);
+}
+
+.app-bar-live span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-bar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.bar-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.bar-btn:hover {
+  color: var(--text);
+  background: var(--card-2);
+}
+
+/* An on-state worth noticing: pushes are the one setting people forget. */
+.bar-btn.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Below the breakpoint the labels drop and the buttons collapse to their
+   glyphs, so the bar still fits a phone. */
+.bar-btn-label {
+  display: none;
+}
+
+.bar-btn-glyph svg,
+.icon-btn > svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (min-width: 700px) {
+  .app-bar {
+    padding: 0 20px;
+  }
+
+  .bar-btn-label {
+    display: inline;
+  }
+
+  .bar-btn-glyph {
+    display: none;
+  }
+}
+
+@media (max-width: 699px) {
+  .bar-btn {
+    padding: 0;
+    width: 36px;
+    font-size: 15px;
+  }
+
+  /* A phone bar can't hold name + code + status next to four buttons — the
+     name is the one you need to know you're in the right room, so the code
+     (still on the Share sheet) and the status wording give way to it. The
+     live dot stays: it's 7px and it's the thing that tells you the room is
+     still updating. */
+  .app-bar-code,
+  .app-bar-live span:last-child {
+    display: none;
+  }
 }
 
 .screen-center {
@@ -92,12 +314,12 @@ body {
 /* ---------- buttons & inputs ---------- */
 
 .btn {
-  min-height: 54px;
+  min-height: 50px;
   padding: 12px 18px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   font-family: inherit;
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   border: none;
   width: 100%;
   cursor: pointer;
@@ -115,7 +337,7 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .btn-primary:active {
@@ -131,7 +353,7 @@ body {
 .btn-danger {
   background: transparent;
   color: var(--red);
-  border: 1px solid rgba(239, 85, 99, 0.4);
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
 }
 
 .btn-link {
@@ -152,14 +374,14 @@ body {
 }
 
 .input {
-  min-height: 54px;
-  font-size: 17px;
+  min-height: 50px;
+  font-size: 16px;
   font-family: inherit;
   background: var(--card-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   color: var(--text);
-  padding: 0 16px;
+  padding: 0 14px;
   width: 100%;
   outline: none;
 }
@@ -224,6 +446,17 @@ body {
   padding: 16px 0 20px;
 }
 
+.page-head-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-head-row h1 {
+  flex: 1;
+  min-width: 0;
+}
+
 .section-title {
   font-size: 15px;
   color: var(--muted);
@@ -270,46 +503,44 @@ body {
 
 .icon-btn {
   flex: 0 0 auto;
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 18px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   color: var(--text);
   text-decoration: none;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.top-title-group {
+.icon-btn:hover {
+  background: var(--card-2);
+}
+
+/* Plain page title, for the secondary pages (new space, admin) that keep the
+   simple back-arrow bar rather than the space's full app bar. */
+.top-title {
   flex: 1;
   min-width: 0;
-}
-
-.top-title {
-  font-size: 18px;
+  font-size: 17px;
+  font-weight: 600;
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.top-sub {
-  font-size: 12.5px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .live-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   display: inline-block;
+  flex: 0 0 auto;
 }
 
 .live-dot.on {
@@ -322,58 +553,112 @@ body {
 
 /* ---------- summary ---------- */
 
+/* The counts sit straight on the page as their own buttons; whichever one is
+   open drops its detail into a card underneath. */
 .summary {
   margin-bottom: 14px;
-  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .stats {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr 1.2fr;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stats-gap {
+  flex: 1;
+}
+
+/* Count and label sit side by side, so the row reads as a sentence of
+   numbers rather than three stacked tiles. */
+.stat {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
+/* Same height as .add-table-btn beside it: sizing to content instead left the
+   chips 39.6px against its 40px, half a pixel out of line all along the row. */
 .stat-btn {
-  background: none;
-  border: none;
+  height: 40px;
+  background: var(--card);
+  border: 1px solid var(--border);
   font-family: inherit;
   color: inherit;
-  padding: 4px 2px;
-  border-radius: 10px;
+  padding: 0 14px;
+  border-radius: var(--radius-control);
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.stat-btn .stat-label {
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
+.add-table-btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.add-table-btn:hover {
+  background: var(--card-2);
+}
+
+.stat-btn:hover {
+  background: var(--card-2);
 }
 
 .stat-btn.active {
   background: var(--card-2);
+  border-color: var(--accent);
 }
 
 .stat-btn.active .stat-label {
   color: var(--accent);
 }
 
-.summary-detail {
-  margin: 10px 0 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-  max-height: 210px;
+/* The open count's list: name on the left, where and when on the right, so a
+   glance down the column answers "who" and a glance across answers "when".
+   Doubled up on .people-list, which it also carries and which would otherwise
+   win on source order and flatten the padding back out. */
+.people-list.summary-detail {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  max-height: 240px;
   overflow-y: auto;
 }
 
+/* Smaller than the pledge list's: here the dot only has to tie the row to a
+   seat on the map, not stand in for the person. */
+.summary-detail .person-dot {
+  width: 10px;
+  height: 10px;
+}
+
+/* "Where" and "when" hold one right-hand column each, so the pills line up
+   under each other instead of trailing names of every length across the row.
+   The time needs a floor to be a column at all: "1h 00m" is narrower than
+   "26h 46m", and right-aligning alone would walk the pill beside it. */
+.summary-detail .person-eta {
+  min-width: 88px;
+}
+
 .stat-value {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .stat-value.ok {
@@ -393,19 +678,21 @@ body {
 .stat-label {
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 /* ---------- room canvas ---------- */
 
-/* The room is square on every device: table positions are fractions of
-   the canvas, so differing aspect ratios would make layouts that don't
-   overlap on one screen overlap on another. */
+/* The room is square on every device: table positions are fractions of the
+   canvas, so differing aspect ratios would make layouts that don't overlap
+   on one screen overlap on another. */
 .room {
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  background: var(--canvas);
   overflow: hidden;
   touch-action: none;
 }
@@ -447,24 +734,23 @@ body {
   top: 50%;
   z-index: 6;
   writing-mode: vertical-rl;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  opacity: 0.7;
+  letter-spacing: 0.2em;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
 }
 
 .room-wall-left {
-  left: 8px;
+  left: 10px;
   transform: translateY(-50%) rotate(180deg);
 }
 
 .room-wall-right {
-  right: 8px;
+  right: 10px;
   transform: translateY(-50%);
 }
 
@@ -472,56 +758,70 @@ body {
   position: absolute;
   transform: translate(-50%, -50%);
   border: 2px dashed var(--accent);
-  border-radius: 10px;
-  background: rgba(79, 140, 255, 0.14);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   pointer-events: none;
   z-index: 4;
 }
 
 .rtable-ghost.invalid {
   border-color: var(--red);
-  background: rgba(239, 85, 99, 0.16);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
 }
 
+/* One joined control, hairline-divided, rather than three floating keys. */
 .zoom-controls {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
+  right: 12px;
+  bottom: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  overflow: hidden;
+  box-shadow: var(--table-shadow);
   z-index: 10;
 }
 
 .zoom-btn {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 17px;
   background: var(--card);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  color: var(--muted);
+  border: none;
   cursor: pointer;
-  opacity: 0.9;
+}
+
+.zoom-btn + .zoom-btn {
+  border-top: 1px solid var(--border);
+}
+
+.zoom-btn:hover {
+  background: var(--card-2);
+  color: var(--text);
 }
 
 .rtable {
   position: absolute;
   transform: translate(-50%, -50%);
-  background: var(--card-2);
-  border: 2px solid var(--border);
-  border-radius: 10px;
+  background: var(--card);
+  border: 1.5px solid var(--border-2);
+  border-radius: 12px;
+  box-shadow: var(--table-shadow);
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-  /* glide when the window reframes (add/remove/move); off mid-drag, see below */
+  /* Glide when the window reframes (add/remove/move); off mid-drag, see below.
+     Height is set explicitly (not implied by a ratio), so it has to glide
+     alongside width or a reframe squashes the table on its way. */
   transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1), height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .rtable.dragging,
@@ -534,8 +834,10 @@ body {
 }
 
 .rtable.released {
-  opacity: 0.45;
+  opacity: 0.65;
+  background: transparent;
   border-style: dashed;
+  box-shadow: none;
 }
 
 .rtable.stolen {
@@ -546,20 +848,23 @@ body {
 
 .rtable.dragging {
   z-index: 5;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-float);
 }
 
+/* The label notches into the table's top edge, so it sits on the canvas
+   colour rather than the page background. */
 .rtable-tag {
   position: absolute;
-  top: -11px;
-  left: 8px;
+  top: -10px;
+  left: 12px;
   z-index: 1;
-  background: var(--bg);
+  background: var(--canvas);
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 8px;
   border-radius: 999px;
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -596,17 +901,20 @@ body {
   pointer-events: none;
   background: repeating-linear-gradient(
     45deg,
-    rgba(239, 85, 99, 0.22) 0,
-    rgba(239, 85, 99, 0.22) 7px,
+    color-mix(in srgb, var(--red) 22%, transparent) 0,
+    color-mix(in srgb, var(--red) 22%, transparent) 7px,
     transparent 7px,
     transparent 14px
   );
 }
 
+/* Seats are separate rounded tiles with a gap between them, rather than one
+   block cut by dissection lines — the gap reads as the seat boundary. */
 .segments {
   position: absolute;
-  inset: 3px;
+  inset: 6px;
   display: flex;
+  gap: 6px;
   pointer-events: none;
 }
 
@@ -620,52 +928,89 @@ body {
 
 .segment {
   flex: 1;
+  min-width: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  gap: 1px;
+  border-radius: 8px;
   overflow: hidden;
+  /* lets the seat's own box size decide whether the sub-label fits, below */
+  container-type: size;
 }
 
-.segment span {
-  font-size: 15px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+.segment.empty {
+  border: 1.5px dashed var(--border-2);
+}
+
+.seat-name {
+  font-size: 13.5px;
+  font-weight: 700;
   /* the label is fitted to width in JS; keep it to a single line and clip
      as a guard rather than ever wrapping or ellipsising */
   white-space: nowrap;
   max-width: 100%;
   overflow: hidden;
-  padding: 0 2px;
+  padding: 0 3px;
 }
 
-/* the requested dissection lines between seats */
-.segments.srow .segment + .segment {
-  border-left: 2px solid var(--border);
-  border-radius: 0 6px 6px 0;
+/* Solid seat: the person's colour carries the tile, so the name is knocked
+   out in white with a shadow — the palette runs light (lime, amber) as well
+   as dark, and the shadow is what keeps those legible. */
+.segment.taken .seat-name {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
-.segments.srow .segment:not(:last-child) {
-  border-radius: 6px 0 0 6px;
+.segment.empty .seat-name {
+  color: var(--faint);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: lowercase;
 }
 
-.segments.scol .segment + .segment {
-  border-top: 2px solid var(--border);
-  border-radius: 0 0 6px 6px;
+/* A packed table leaves each seat only a few pixels wide — an ETA there would
+   just clip to noise, so the sub-label stays hidden until the seat's own box
+   can hold a second line. Measured against .segment's size container, i.e. in
+   layout pixels, the same basis fitLabel() uses to shorten the name. */
+.seat-sub {
+  display: none;
+  font-size: 10.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 3px;
 }
 
-.segments.scol .segment:not(:last-child) {
-  border-radius: 6px 6px 0 0;
+@container (min-height: 40px) and (min-width: 46px) {
+  .seat-sub {
+    display: block;
+  }
 }
 
-.segment.mine-seat span {
+.segment.taken .seat-sub {
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.segment.mine-seat .seat-name {
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
+/* Sits on the canvas itself — the instructions belong where the gesture is. */
 .room-hint {
-  margin: 8px 2px 0;
+  position: absolute;
+  left: 14px;
+  bottom: 16px;
+  color: var(--faint);
+  font-size: 12px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 6;
+  padding-right: 60px;
 }
 
 /* ---------- people list ---------- */
@@ -674,9 +1019,32 @@ body {
   margin-top: 14px;
 }
 
+/* Shared sidebar-card header: quiet uppercase label, count pushed right. */
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.card-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.card-count {
+  font-size: 12px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
 .people-list {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -687,7 +1055,25 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 15px;
+  font-size: 14px;
+}
+
+/* Whoever isn't in the room yet sits back a little. */
+.people-list li.coming {
+  opacity: 0.8;
+}
+
+.person-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex: 0 0 auto;
 }
 
 .person-dot {
@@ -706,6 +1092,8 @@ body {
 
 .person-name {
   font-weight: 600;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -713,7 +1101,7 @@ body {
 
 .person-table {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 1px 8px;
@@ -723,6 +1111,8 @@ body {
 .person-eta {
   margin-left: auto;
   color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
 }
 
@@ -750,8 +1140,8 @@ body {
 }
 
 .swatch.active {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255, 255, 255, 0.35);
+  border-color: var(--card);
+  box-shadow: 0 0 0 2px var(--text);
 }
 
 /* ---------- steppers ---------- */
@@ -807,7 +1197,7 @@ body {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay);
   z-index: 20;
   display: flex;
   align-items: flex-end;
@@ -820,7 +1210,7 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-bottom: none;
-  border-radius: 22px 22px 0 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   padding: 10px 18px calc(24px + env(safe-area-inset-bottom));
   animation: sheet-up 0.2s ease-out;
   /* Long sheets scroll inside themselves instead of growing past the screen. */
@@ -849,10 +1239,11 @@ body {
   }
 
   .sheet {
-    border-radius: 22px;
+    border-radius: var(--radius);
     border-bottom: 1px solid var(--border);
     padding-bottom: 24px;
     max-height: min(820px, 100%);
+    box-shadow: var(--shadow-float);
   }
 
   .sheet-handle {
@@ -955,7 +1346,7 @@ body {
 .chip.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .time-row {
@@ -968,7 +1359,6 @@ body {
 
 .time-input {
   flex: 1;
-  color-scheme: dark;
 }
 
 /* ---------- groups / idle screen ---------- */
@@ -1022,19 +1412,7 @@ body {
   font-size: 14px;
 }
 
-/* ---------- room toolbar / occupants ---------- */
 
-.room-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.room-toolbar .room-hint {
-  flex: 1;
-  margin: 0 2px;
-}
 
 .btn-compact {
   width: auto;
@@ -1096,7 +1474,7 @@ body {
 
 .occupant-btn.danger {
   color: var(--red);
-  border-color: rgba(239, 85, 99, 0.4);
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
 }
 
 .guest-form .link-btn {
@@ -1114,12 +1492,16 @@ body {
 
 @media (min-width: 1000px) {
   .app.space-layout {
-    max-width: 1280px;
-    height: 100dvh;
-    padding: 20px 24px;
+    max-width: 1440px;
+    /* The app bar is out of the grid, so the page owns exactly what's left.
+       .app's own min-height:100dvh would otherwise win over this height and
+       push the room's bottom edge off-screen. */
+    height: calc(100dvh - 60px);
+    min-height: 0;
+    padding: 20px 24px 24px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    column-gap: 24px;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    column-gap: 20px;
     overflow: hidden;
   }
 
@@ -1128,28 +1510,34 @@ body {
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+    gap: 14px;
   }
 
   .space-side {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
     min-height: 0;
     overflow-y: auto;
   }
 
   .space-side .people,
-  .space-side .vote-bar,
+  .space-side .vote-card,
   .space-side .timer-card {
     margin-top: 0;
   }
 
-  /* Sidebar reads top-to-bottom People · Timer · Votes, with the destructive
-     End button pushed to the very bottom (level with the room) by the auto
-     margin. DOM order already matches, so the phone's single-column flow
-     keeps End last too. */
-  .space-side .end-space {
+  /* Sidebar reads top-to-bottom People · Timer · Votes, then the chat dock
+     and the destructive End button anchored to the foot of the column. Only
+     the FIRST of that pair may take the auto margin — give it to both and
+     flexbox splits the slack between them, leaving chat stranded mid-column.
+     DOM order already matches, so the phone's single flow keeps End last. */
+  .space-side .chat-dock {
     margin-top: auto;
+  }
+
+  .space-side .end-space {
+    margin-top: 0;
   }
 
   .room-wrap {
@@ -1160,17 +1548,15 @@ body {
   }
 
   .space-layout .room {
-    /* Height-driven on desktop, but the same square shape as mobile so
-       arrangements render identically on both. */
+    /* Takes the whole work area. The canvas need not be square — Room.tsx
+       keeps the window's CELLS square instead and flanks the framing with
+       extra board along the room's longer axis, so tables still meet flush.
+       Never give a table a size on one axis and a position on the other
+       without that: it is what pulled them apart before. */
     height: 100%;
-    width: auto;
-    aspect-ratio: 1 / 1;
-    max-width: 100%;
-    align-self: center;
-  }
-
-  .space-layout .room-toolbar {
-    margin-top: 12px;
+    width: 100%;
+    aspect-ratio: auto;
+    align-self: stretch;
   }
 }
 
@@ -1237,6 +1623,94 @@ body {
   flex-wrap: wrap;
 }
 
+.admin-blocklist-card > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-blocklist-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(138px, 0.85fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.admin-blocklist-form .btn {
+  grid-column: 1 / -1;
+}
+
+.admin-blocklist-select {
+  cursor: pointer;
+  padding-right: 36px;
+}
+
+.admin-blocklist-help {
+  padding-bottom: 2px;
+}
+
+.admin-empty-rule {
+  min-height: 66px;
+  padding: 12px;
+  border: 1px dashed var(--border-2);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--green) 5%, var(--card));
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--muted);
+}
+
+.admin-empty-rule-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--green) 14%, var(--card));
+  color: var(--green);
+  font-weight: 800;
+}
+
+.admin-empty-rule strong,
+.admin-empty-rule small {
+  display: block;
+}
+
+.admin-empty-rule strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.admin-empty-rule small {
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+
+.admin-blocklist-row {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.admin-rule-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.admin-rule-badge.contains {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+}
+
 .archived-spaces summary {
   cursor: pointer;
   color: var(--muted);
@@ -1296,6 +1770,16 @@ body {
   }
 }
 
+@media (max-width: 400px) {
+  .admin-blocklist-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-blocklist-form .btn {
+    grid-column: auto;
+  }
+}
+
 /* ---------- misc ---------- */
 
 .sheet-owner {
@@ -1311,9 +1795,6 @@ body {
   gap: 10px;
 }
 
-.icon-btn-active {
-  border-color: var(--accent);
-}
 
 .end-space {
   margin-top: 20px;
@@ -1332,7 +1813,7 @@ body {
   border-radius: 14px;
   font-size: 14.5px;
   max-width: min(420px, calc(100vw - 32px));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-float);
 }
 
 /* ---------- votes ---------- */
@@ -1343,15 +1824,15 @@ body {
   margin-top: 12px;
 }
 
-.timer-head {
+/* The running card sets its own rhythm rather than each block bringing a
+   margin. Scoped off .timer-card so the preset card keeps .stack's gap. */
+.timer-live {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.timer-head .section-title {
-  flex: 1;
-}
+
 
 .timer-hint {
   margin: 0;
@@ -1364,6 +1845,8 @@ body {
 
 .timer-preset {
   flex: 1;
+  /* Without this the word chips keep their content width and outgrow the numbers. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1373,6 +1856,14 @@ body {
   font-size: 17px;
   font-weight: 700;
   line-height: 1.1;
+}
+
+/* A word carries less optical weight per pixel than a two-digit number, so it
+   sits a touch smaller to match the numbers rather than shout over them. */
+.timer-preset-word {
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .timer-preset small {
@@ -1385,12 +1876,90 @@ body {
   color: inherit;
 }
 
-/* The ring drains clockwise as the round runs down; the number in the
-   middle is the source of truth, the ring is the glanceable version. */
+/* A running round is a strip, not a poster: ring on the left, the count and
+   who's in on the right, so it costs the sidebar ~90px instead of ~300px. */
+.timer-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.timer-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timer-time-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.timer-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.timer-more {
+  flex: 0 0 auto;
+  margin-left: 1px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* One line of timing facts, ellipsised rather than wrapped — .timer-sub asks
+   for an ellipsis but can't get one without this, so it used to wrap the
+   sidebar's narrow card to two ragged lines. The finished card's sentence is
+   meant to wrap, so it stays outside this rule. */
+.timer-meta .timer-sub {
+  white-space: nowrap;
+}
+
+.timer-of {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Calling off a round or a vote is a small, quiet control that only turns red
+   under the cursor — it sits inside a card that is otherwise information, and
+   a permanently red box would shout over it. */
+.quiet-x {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.quiet-x:hover {
+  background: var(--card-2);
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+}
+
+/* The ring drains clockwise as the round runs down; the number beside it is
+   the source of truth, the ring is the glanceable version. */
 .timer-ring-wrap {
   position: relative;
-  width: 172px;
-  margin: 2px auto;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
 }
 
 .timer-ring {
@@ -1401,13 +1970,13 @@ body {
 .timer-ring-track {
   fill: none;
   stroke: var(--card-2);
-  stroke-width: 10;
+  stroke-width: 6;
 }
 
 .timer-ring-fill {
   fill: none;
   stroke: var(--accent);
-  stroke-width: 10;
+  stroke-width: 6;
   stroke-linecap: round;
   transition: stroke-dashoffset 0.5s linear, stroke 0.3s ease;
 }
@@ -1423,113 +1992,102 @@ body {
   50% { opacity: 0.55; }
 }
 
-.timer-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
 .timer-time {
-  font-size: 32px;
-  font-weight: 800;
+  font-size: 24px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-}
-
-.timer-emoji {
-  font-size: 36px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 .timer-sub {
-  font-size: 12px;
+  margin: 0;
+  font-size: 12.5px;
   color: var(--muted);
-}
-
-.timer-ends {
-  font-size: 11px;
-  opacity: 0.85;
-}
-
-.timer-people {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center;
-}
-
-.timer-person {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--card-2);
-  border: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timer-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
+/* Your status is a badge in the ring's own green, and its action a button of
+   the same height — bare bold green text thrown across the card from a 44px
+   button read as two unrelated things rather than a pair. */
 .timer-in {
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--green) 35%, var(--border));
+  background: color-mix(in srgb, var(--green) 10%, transparent);
   color: var(--green);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.timer-foot .btn-compact {
+  margin-left: auto;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13.5px;
 }
 
 /* ---- room chat (support-widget style, pinned bottom-right) ---- */
 
-.chat-fab {
-  position: fixed;
-  right: 14px;
-  bottom: calc(14px + env(safe-area-inset-bottom));
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--text);
-  font-size: 22px;
+/* Collapsed chat is a docked card carrying the last line, so the room can be
+   read without opening it. */
+.chat-dock {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-top: 14px;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  z-index: 15;
+  width: 100%;
+  text-align: left;
 }
 
-.chat-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 21px;
-  height: 21px;
+.chat-dock:hover {
+  background: var(--card-2);
+}
+
+.chat-dock-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.chat-dock-preview {
+  font-size: 12.5px;
+  color: var(--faint);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-dock-badge {
+  min-width: 20px;
+  height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--red);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11.5px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* ring in the page background so the dot reads clearly off the dark button */
-  border: 2px solid var(--bg);
-  box-shadow: 0 0 0 1px rgba(239, 85, 99, 0.6), 0 2px 8px rgba(239, 85, 99, 0.5);
-  animation: chat-badge-pop 1.8s ease-in-out infinite;
-}
-
-@keyframes chat-badge-pop {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+  flex: 0 0 auto;
 }
 
 /* "Mark as read" pill floating left of the chat button while unread > 0 —
@@ -1567,7 +2125,7 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-float);
   overflow: hidden;
   z-index: 15;
 }
@@ -1622,7 +2180,7 @@ body {
   align-self: flex-end;
   border-radius: 12px 12px 4px 12px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .chat-msg-name {
@@ -1648,33 +2206,110 @@ body {
   flex-shrink: 0;
 }
 
-.vote-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
-}
 
-.vote-chip {
-  min-height: 36px;
-  padding: 0 14px;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--muted);
-}
 
-.vote-chip strong {
-  color: var(--text);
-}
 
-.vote-chip-new {
-  font-weight: 600;
-}
 
 .vote-card {
   display: flex;
   flex-direction: column;
+  gap: 11px;
+  margin-top: 14px;
+}
+
+.vote-empty {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vote-empty:hover {
+  background: var(--card-2);
+  color: var(--text);
+}
+
+.vote-summary-card {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.vote-summary-card:hover {
+  background: var(--card-2);
+  border-color: var(--border-2);
+}
+
+.vote-summary-card .card-head {
+  margin-bottom: 0;
+}
+
+.vote-summary-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.vote-summary-arrow {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 0.8;
+}
+
+/* Only the current leader is shown here. Full results and every voting action
+   live in the sheet, keeping the room view calm while work is in progress. */
+.vote-leader {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.vote-leader-result {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 13.5px;
+  gap: 8px;
+}
+
+.vote-leader .vote-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vote-leader .vote-count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.vote-leader .vote-track {
+  background: var(--card-2);
+}
+
+.vote-leader .vote-fill {
+  background: var(--accent);
+}
+
+.vote-leader.empty .vote-track {
+  opacity: 0.65;
 }
 
 .vote-head {
@@ -1683,10 +2318,18 @@ body {
   gap: 10px;
 }
 
+/* An option and its expanded menu are one unit, so they sit closer to each
+   other (8px) than the section's 12px between separate options. */
+.vote-opt-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .vote-opt {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .vote-opt-main {
@@ -1694,8 +2337,9 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  min-height: 44px;
+  gap: 8px;
+  /* Matches .input, so an option row and the suggest row below it are twins. */
+  min-height: 50px;
   padding: 9px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -1732,6 +2376,65 @@ body {
 
 .vote-opt.mine .vote-opt-main {
   border-color: var(--accent);
+}
+
+/* A drawn radio, not an emoji checkbox: the glyphs shipped their own colour
+   and corner radius, so a row of them fought the palette they sat in. */
+.vote-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  border: 1.5px solid var(--border-2);
+}
+
+.vote-opt.mine .vote-check {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  box-shadow: inset 0 0 0 3px var(--card-2);
+}
+
+/* Says what it opens, in the sheet's own type, rather than leaving an icon to
+   be guessed at. */
+.vote-menu-btn {
+  flex: 0 0 auto;
+  align-self: stretch;
+  /* Every row ends on the same edge: "Closed" is wider than "Menu", and
+     sizing to content let it eat 5px off its own option's card. */
+  min-width: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.vote-menu-btn:hover {
+  background: var(--card-2);
+  color: var(--text);
+}
+
+.vote-menu-btn.open {
+  background: var(--card-2);
+  color: var(--text);
+}
+
+/* A mensa that isn't serving today has nothing to open. */
+.vote-menu-btn.closed {
+  cursor: default;
+  color: var(--faint);
+}
+
+.vote-menu-btn.closed:hover {
+  background: var(--card);
+  color: var(--faint);
 }
 
 .vote-total {
@@ -1771,8 +2474,16 @@ body {
   min-width: 0;
 }
 
+/* Lands the Add button on the same edge as the Menu column above it. */
+.vote-card .vote-add-row .btn-compact {
+  min-width: 64px;
+}
+
 .menu-detail {
-  margin: 2px 0 6px;
+  /* Spacing is the group's to set, not the menu's — its own margins used to
+     stack on top of the flex gap and land it 2px under its row but 17px above
+     the next one. */
+  margin: 0;
   padding: 10px 12px;
   list-style: none;
   border-radius: 12px;
