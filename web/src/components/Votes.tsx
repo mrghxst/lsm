@@ -155,7 +155,7 @@ function VoteCard({
         )}
       </div>
       {vote.options.map((o) => (
-        <div key={o.id}>
+        <div key={o.id} className="vote-opt-group">
           <div className={`vote-opt${o.id === myOptionId ? ' mine' : ''}`}>
             <button
               className="vote-opt-main"
@@ -171,12 +171,14 @@ function VoteCard({
                 </span>
                 <span className="vote-count">{o.voters.length > 0 ? o.voters.length : ''}</span>
               </span>
-              <span className="vote-track">
-                <span
-                  className="vote-fill"
-                  style={{ width: totalBallots > 0 ? `${(o.voters.length / totalBallots) * 100}%` : '0%' }}
-                />
-              </span>
+              {/* A share of nothing is nothing to show: until a ballot is cast
+                  every track is empty, so the row of them reads as an artifact
+                  rather than a result. */}
+              {totalBallots > 0 && (
+                <span className="vote-track">
+                  <span className="vote-fill" style={{ width: `${(o.voters.length / totalBallots) * 100}%` }} />
+                </span>
+              )}
             </button>
             {o.facilityId !== null &&
               (menus?.find((m) => m.facilityId === o.facilityId)?.status === 'closed' ? (

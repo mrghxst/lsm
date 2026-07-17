@@ -2269,10 +2269,18 @@ body {
   gap: 10px;
 }
 
+/* An option and its expanded menu are one unit, so they sit closer to each
+   other (8px) than the section's 12px between separate options. */
+.vote-opt-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .vote-opt {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .vote-opt-main {
@@ -2280,8 +2288,9 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  min-height: 44px;
+  gap: 8px;
+  /* Matches .input, so an option row and the suggest row below it are twins. */
+  min-height: 50px;
   padding: 9px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -2341,6 +2350,12 @@ body {
 .vote-menu-btn {
   flex: 0 0 auto;
   align-self: stretch;
+  /* Every row ends on the same edge: "Closed" is wider than "Menu", and
+     sizing to content let it eat 5px off its own option's card. */
+  min-width: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0 12px;
   font: inherit;
   font-size: 12.5px;
@@ -2364,8 +2379,6 @@ body {
 
 /* A mensa that isn't serving today has nothing to open. */
 .vote-menu-btn.closed {
-  display: inline-flex;
-  align-items: center;
   cursor: default;
   color: var(--faint);
 }
@@ -2412,8 +2425,16 @@ body {
   min-width: 0;
 }
 
+/* Lands the Add button on the same edge as the Menu column above it. */
+.vote-card .vote-add-row .btn-compact {
+  min-width: 64px;
+}
+
 .menu-detail {
-  margin: 2px 0 6px;
+  /* Spacing is the group's to set, not the menu's — its own margins used to
+     stack on top of the flex gap and land it 2px under its row but 17px above
+     the next one. */
+  margin: 0;
   padding: 10px 12px;
   list-style: none;
   border-radius: 12px;
