@@ -1824,6 +1824,14 @@ body {
   margin-top: 12px;
 }
 
+/* The running card sets its own rhythm rather than each block bringing a
+   margin. Scoped off .timer-card so the preset card keeps .stack's gap. */
+.timer-live {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 
 
 .timer-hint {
@@ -2003,14 +2011,30 @@ body {
 .timer-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 8px;
 }
 
+/* Your status is a badge in the ring's own green, and its action a button of
+   the same height — bare bold green text thrown across the card from a 44px
+   button read as two unrelated things rather than a pair. */
 .timer-in {
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--green) 35%, var(--border));
+  background: color-mix(in srgb, var(--green) 10%, transparent);
   color: var(--green);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.timer-foot .btn-compact {
+  margin-left: auto;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13.5px;
 }
 
 /* ---- room chat (support-widget style, pinned bottom-right) ---- */

@@ -181,7 +181,7 @@ export function FocusTimerCard({
   const canStop = finished || canManage || timer.startedBy === userId;
 
   return (
-    <div className="card timer-card">
+    <div className="card timer-card timer-live">
       <div className="timer-row">
         <div className="timer-ring-wrap">
           <svg className="timer-ring" viewBox="0 0 64 64">
@@ -210,30 +210,6 @@ export function FocusTimerCard({
               </>
             )}
           </div>
-          {finished ? (
-            <p className="timer-sub">
-              Nice work{joined ? ' — stretch your legs' : ''}! Anyone can start the next round.
-            </p>
-          ) : (
-            // Who's in is worth a glance, not a sentence: the same colour badge
-            // the room already identifies people by, beside the timing facts.
-            <div className="timer-meta">
-              {timer.participants.length > 0 && (
-                <span className="voter-dots">
-                  {timer.participants.slice(0, MAX_DOTS).map((p) => (
-                    <span key={p.userId} className="person-dot" style={{ background: p.color }} title={p.username} />
-                  ))}
-                  {timer.participants.length > MAX_DOTS && (
-                    <span className="timer-more">+{timer.participants.length - MAX_DOTS}</span>
-                  )}
-                </span>
-              )}
-              <span className="timer-sub">
-                ends {formatClock(timer.endsAt)}
-                {joinOpen && ` · join open ${fmt(timer.joinUntil - now)}`}
-              </span>
-            </div>
-          )}
         </div>
 
         {canStop && (
@@ -249,6 +225,30 @@ export function FocusTimerCard({
           </button>
         )}
       </div>
+
+      {/* Below the row, not beside the ring: the ring and the ✕ leave the body
+          166px of the sidebar's 320px card, and the timing facts alone need
+          ~147px — the badges could never fit there. Full width they can. */}
+      {finished ? (
+        <p className="timer-sub">Nice work{joined ? ' — stretch your legs' : ''}! Anyone can start the next round.</p>
+      ) : (
+        <div className="timer-meta">
+          {timer.participants.length > 0 && (
+            <span className="voter-dots">
+              {timer.participants.slice(0, MAX_DOTS).map((p) => (
+                <span key={p.userId} className="person-dot" style={{ background: p.color }} title={p.username} />
+              ))}
+              {timer.participants.length > MAX_DOTS && (
+                <span className="timer-more">+{timer.participants.length - MAX_DOTS}</span>
+              )}
+            </span>
+          )}
+          <span className="timer-sub">
+            ends {formatClock(timer.endsAt)}
+            {joinOpen && ` · join open ${fmt(timer.joinUntil - now)}`}
+          </span>
+        </div>
+      )}
 
       {!finished &&
         (joined ? (
