@@ -21,7 +21,7 @@ test('blocks configured joke names regardless of case or common evasions', () =>
 });
 
 test('blocks clear profanity without rejecting legitimate names containing the same letters', () => {
-  for (const name of ['fuck', 'f.u.c.k', 'Fuck Face', 'shithead']) {
+  for (const name of ['fuck', 'f.u.c.k', 'Fuck Face', 'shithead', 'Fuck3r', 'D1ckhead', 'Wanker']) {
     assert.equal(isBlockedName(name), true, `${name} should be blocked`);
   }
   for (const name of [
