@@ -110,7 +110,7 @@ flowchart LR
 ### Groups and people
 
 - Accounts use a name, four-to-eight-digit PIN, and personal color.
-- New registrations require a one-time admin invite; the first account and `ADMIN_USERNAME` can bootstrap access.
+- New registrations require a one-time admin invite. The first account may register without a code; configure `ADMIN_USERNAME` to make that account the initial admin who can issue later invites.
 - Space codes and share links are permanent, even though the daily room is reset.
 - The home screen shows people counts and free-seat availability for every active space.
 - Tomorrow pledges give the next opener an early estimate of how many seats will be needed.
@@ -198,7 +198,8 @@ That keeps the app reachable through the tunnel without exposing port `3000` pub
 |---|---:|---|
 | `PORT` | `3000` | Express HTTP port |
 | `DATA_DIR` | `./data` | SQLite database and generated VAPID keys |
-| `ADMIN_USERNAME` | — | Grants the matching account access to `/admin` |
+| `ADMIN_USERNAME` | — | Grants the matching account access to `/admin`; set this for the initial administrator on a fresh deployment |
+| `PUBLIC_ORIGIN` | request origin | Canonical public URL (for example `https://lsm.example.com`) used for link previews and origin checks |
 | `NAME_BLOCKLIST_FILE` | — | Optional absolute path to an extra name-policy JSON file; changes are picked up automatically |
 
 ### Name policy

@@ -1,5 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react';
 import type { Claim, Table } from '../types';
 import { claimColor, etaLabel, formatDuration } from '../util';
 import { useNowMinute } from '../useNow';
@@ -271,12 +275,42 @@ function seatSub(claim: Claim, now: number): string {
   return claim.arrivedAt ? formatDuration(claim.arrivedAt, now) : 'here';
 }
 
-function Segment({ claim, mine, now }: { claim: Claim | undefined; mine: boolean; now: number }) {
+function Segment({
+  claim,
+  mine,
+  now,
+  ariaLabel,
+  onActivate,
+}: {
+  claim: Claim | undefined;
+  mine: boolean;
+  now: number;
+  ariaLabel: string;
+  onActivate(): void;
+}) {
+  const keyboardActivate = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    // Pointer selection is handled by the draggable table so it can resolve
+    // the compartment under the finger. Native keyboard/screen-reader clicks
+    // have detail=0 and use this direct path instead.
+    if (event.detail === 0) onActivate();
+  };
+  const keyboardKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onActivate();
+    }
+  };
   if (!claim) {
     return (
-      <div className="segment empty">
+      <button
+        type="button"
+        className="segment empty"
+        aria-label={ariaLabel}
+        onClick={keyboardActivate}
+        onKeyDown={keyboardKeyDown}
+      >
         <span className="seat-name">free</span>
-      </div>
+      </button>
     );
   }
   const color = claimColor(claim);
@@ -292,12 +326,19 @@ function Segment({ claim, mine, now }: { claim: Claim | undefined; mine: boolean
       };
   const subStyle = arrived ? undefined : { color: `color-mix(in srgb, ${color} 70%, var(--muted))` };
   return (
-    <div className={`segment ${arrived ? 'taken' : 'coming'}${mine ? ' mine-seat' : ''}`} style={style}>
+    <button
+      type="button"
+      className={`segment ${arrived ? 'taken' : 'coming'}${mine ? ' mine-seat' : ''}`}
+      style={style}
+      aria-label={ariaLabel}
+      onClick={keyboardActivate}
+      onKeyDown={keyboardKeyDown}
+    >
       <SeatLabel name={claim.guestName ?? claim.username} />
       <span className="seat-sub" style={subStyle}>
         {seatSub(claim, now)}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -731,6 +772,21 @@ export function Room({
                 (t.stolen ? ' stolen' : '') +
                 (live?.id === t.id ? ' dragging' : '')
               }
+              role={t.released || t.stolen ? 'button' : undefined}
+              tabIndex={t.released || t.stolen ? 0 : undefined}
+              aria-label={
+                t.stolen
+                  ? `${t.label}, taken by others. Open table settings`
+                  : t.released
+                    ? `${t.label}, given back. Open table settings`
+                    : undefined
+              }
+              onKeyDown={(event) => {
+                if ((t.released || t.stolen) && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault();
+                  onTap(t.id, 0);
+                }
+              }}
               style={{
                 left: `${winLeft(dwin, pos.x)}%`,
                 top: `${winTop(dwin, pos.y)}%`,
@@ -757,6 +813,12 @@ export function Room({
                         claim={claim}
                         mine={claim?.userId === currentUserId && !claim?.guestName}
                         now={now}
+                        ariaLabel={
+                          claim
+                            ? `${t.label}, seat ${i + 1}: ${claim.guestName ?? claim.username}, ${seatSub(claim, now)}`
+                            : `${t.label}, seat ${i + 1}: free`
+                        }
+                        onActivate={() => onTap(t.id, i)}
                       />
                     );
                   })}

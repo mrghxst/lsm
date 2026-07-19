@@ -151,6 +151,7 @@ export function Home() {
                   style={{ background: c }}
                   onClick={() => setColor(c)}
                   aria-label={`Color ${c}`}
+                  aria-pressed={c === color}
                 />
               ))}
             </div>

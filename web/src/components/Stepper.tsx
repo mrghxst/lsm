@@ -17,11 +17,11 @@ export function Stepper({
     <div className={`stepper${small ? ' stepper-sm' : ''}`}>
       <span className="stepper-label">{label}</span>
       <div className="stepper-controls">
-        <button type="button" className="stepper-btn" onClick={() => onChange(value - 1)} disabled={value <= min}>
+        <button type="button" className="stepper-btn" aria-label={`Decrease ${label}`} onClick={() => onChange(value - 1)} disabled={value <= min}>
           −
         </button>
-        <span className="stepper-value">{value}</span>
-        <button type="button" className="stepper-btn" onClick={() => onChange(value + 1)} disabled={value >= max}>
+        <span className="stepper-value" aria-live="polite">{value}</span>
+        <button type="button" className="stepper-btn" aria-label={`Increase ${label}`} onClick={() => onChange(value + 1)} disabled={value >= max}>
           +
         </button>
       </div>

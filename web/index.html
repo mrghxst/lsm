@@ -16,20 +16,9 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Space+Grotesk:wght@500..700&display=swap"
       rel="stylesheet"
     />
-    <!-- Pick the theme before first paint, otherwise a dark-mode user gets a
-         white flash on every load. Mirrors resolveTheme() in src/theme.ts. -->
-    <script>
-      (function () {
-        try {
-          var saved = localStorage.getItem('lsm-theme');
-          var dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-          if (dark) {
-            document.documentElement.classList.add('dark');
-            document.querySelector('meta[name=theme-color]').setAttribute('content', '#0b0e13');
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <!-- Pick the theme before first paint. Kept external so production can
+         enforce a script-src 'self' Content Security Policy. -->
+    <script src="/theme-init.js"></script>
     <!--APP_META-->
     <title>Learning Space Manager</title>
   </head>

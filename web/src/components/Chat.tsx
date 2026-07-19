@@ -61,25 +61,24 @@ export function RoomChat({
   if (!open) {
     const last = messages[messages.length - 1];
     return (
-      <button className="card chat-dock" onClick={() => setOpen(true)}>
-        <span className="chat-dock-label">Room chat</span>
-        <span className="chat-dock-preview">
-          {last ? `${last.userId === userId ? 'You' : last.username}: ${last.body}` : 'Say hi to the room 👋'}
-        </span>
-        {unread > 0 && (
-          <span
-            className="chat-dock-badge"
-            role="button"
-            title="Mark as read"
-            onClick={(e) => {
-              e.stopPropagation();
-              markRead();
-            }}
-          >
-            {unread > 9 ? '9+' : unread}
+      <>
+        <button className="card chat-dock" onClick={() => setOpen(true)}>
+          <span className="chat-dock-label">Room chat</span>
+          <span className="chat-dock-preview">
+            {last ? `${last.userId === userId ? 'You' : last.username}: ${last.body}` : 'Say hi to the room 👋'}
           </span>
+          {unread > 0 && <span className="chat-dock-badge" aria-hidden="true">{unread > 9 ? '9+' : unread}</span>}
+        </button>
+        {unread > 0 && (
+          <button
+            className="chat-mark-read"
+            aria-label={`Mark ${unread} unread room ${unread === 1 ? 'message' : 'messages'} as read`}
+            onClick={markRead}
+          >
+            ✓ Read
+          </button>
         )}
-      </button>
+      </>
     );
   }
 
@@ -89,6 +88,7 @@ export function RoomChat({
         <span className="chat-title">Room chat</span>
         <button
           className="icon-btn chat-icon"
+          aria-label={notifyChat ? 'Mute room chat notifications' : 'Enable room chat notifications'}
           title={notifyChat ? 'Notifications on — tap to mute (same as in Settings)' : 'Notifications off — tap to unmute (same as in Settings)'}
           onClick={() => actions.setChatNotify(!notifyChat)}
         >
@@ -130,7 +130,7 @@ export function RoomChat({
             }
           }}
         />
-        <button className="btn btn-primary btn-compact chat-send" disabled={!canChat || !text.trim()} onClick={send}>
+        <button className="btn btn-primary btn-compact chat-send" aria-label="Send message" disabled={!canChat || !text.trim()} onClick={send}>
           ➤
         </button>
       </div>

@@ -121,6 +121,18 @@ authRouter.post('/session', (req, res) => {
   if (!isBootstrap && !inviteCode) {
     return res.status(403).json({ error: 'This name is new here — ask an admin for a one-time invite code to register.' });
   }
+  // Reject a bad code before bcrypt. Hashing is intentionally expensive and
+  // synchronous in bcryptjs, so doing it for arbitrary invalid codes lets an
+  // unauthenticated caller monopolize the single Node event loop. The
+  // transaction below still consumes the code atomically after the hash, so
+  // this early lookup is only a cheap abuse guard, not the final redemption.
+  if (!isBootstrap) {
+    const validInvite = db.prepare('SELECT 1 FROM invite_codes WHERE code = ? AND used_at IS NULL').get(inviteCode);
+    if (!validInvite) {
+      recordFailure(failKeys);
+      return res.status(403).json({ error: 'That invite code is not valid (or was already used).' });
+    }
+  }
 
   let user;
   try {
@@ -147,6 +159,7 @@ authRouter.post('/session', (req, res) => {
     })();
   } catch (e) {
     if (!e.status) throw e;
+    if (e.status === 403) recordFailure(failKeys);
     return res.status(e.status).json({ error: e.message });
   }
   applyAdminGrant(user);

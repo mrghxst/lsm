@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
 // Shared sheet chrome: a bottom sheet on phones, a centered dialog on
@@ -22,14 +22,51 @@ export function Sheet({
 }) {
   const [dragY, setDragY] = useState(0);
   const drag = useRef<{ id: number; startY: number } | null>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const titleId = useId();
 
   useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = dialog.current;
+    if (panel && !panel.contains(document.activeElement)) {
+      const first = panel.querySelector<HTMLElement>(
+        '[autofocus], button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      (first ?? panel).focus();
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !panel) return;
+      const focusable = [...panel.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )].filter((element) => element.getClientRects().length > 0);
+      if (focusable.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      previousFocus?.focus();
+    };
+  }, []);
 
   function grabDown(e: ReactPointerEvent) {
     // Interactive elements in the draggable header must keep their own
@@ -66,7 +103,12 @@ export function Sheet({
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div
+        ref={dialog}
         className={className ? `sheet ${className}` : 'sheet'}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={dragY > 0 ? { transform: `translateY(${dragY}px)` } : undefined}
       >
@@ -79,7 +121,7 @@ export function Sheet({
         >
           <div className="sheet-handle" />
           <div className="sheet-head">
-            <h2>{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {meta}
             <button className="sheet-close" onClick={onClose} aria-label="Close">
               ✕

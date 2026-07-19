@@ -136,9 +136,9 @@ body {
 }
 
 .app-bar-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   background: var(--accent);
   color: var(--on-accent);
   display: flex;
@@ -209,7 +209,7 @@ body {
 }
 
 .bar-btn {
-  height: 36px;
+  min-height: 44px;
   padding: 0 14px;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -270,9 +270,18 @@ body {
 }
 
 @media (max-width: 699px) {
+  .app-bar {
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .app-bar-actions {
+    gap: 4px;
+  }
+
   .bar-btn {
     padding: 0;
-    width: 36px;
+    width: 44px;
     font-size: 15px;
   }
 
@@ -503,8 +512,8 @@ body {
 
 .icon-btn {
   flex: 0 0 auto;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -938,6 +947,19 @@ body {
   overflow: hidden;
   /* lets the seat's own box size decide whether the sub-label fits, below */
   container-type: size;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.segment:focus-visible,
+.rtable[role='button']:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .segment.empty {
@@ -1131,8 +1153,8 @@ body {
 }
 
 .swatch {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 3px solid transparent;
   cursor: pointer;
@@ -1286,8 +1308,8 @@ body {
    tap — the ✕ must always be there. */
 .sheet-close {
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 999px;
   background: var(--card-2);
@@ -1931,8 +1953,8 @@ body {
    under the cursor — it sits inside a card that is otherwise information, and
    a permanently red box would shout over it. */
 .quiet-x {
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   align-self: flex-start;
   display: flex;
@@ -2096,7 +2118,7 @@ body {
   position: fixed;
   right: 76px;
   bottom: calc(26px + env(safe-area-inset-bottom));
-  height: 30px;
+  min-height: 44px;
   padding: 0 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -2145,8 +2167,8 @@ body {
 }
 
 .chat-icon {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   font-size: 16px;
 }
 

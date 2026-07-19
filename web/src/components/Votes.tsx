@@ -149,7 +149,7 @@ function VoteCard({
         <p className="sheet-label">{vote.title}</p>
         <span className="vote-total">{totalBallots === 1 ? '1 vote' : `${totalBallots} votes`}</span>
         {canRemove && (
-          <button className="quiet-x" title="Remove this vote" onClick={() => actions.removeVote(vote.id)}>
+          <button className="quiet-x" aria-label={`Remove vote: ${vote.title}`} title="Remove this vote" onClick={() => actions.removeVote(vote.id)}>
             ✕
           </button>
         )}

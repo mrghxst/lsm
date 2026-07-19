@@ -15,7 +15,67 @@ import { subscribeDashboard } from './events.js';
 
 export const app = express();
 app.set('trust proxy', 1);
-app.use(express.json());
+app.disable('x-powered-by');
+
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "connect-src 'self'",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "img-src 'self' data: https:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "worker-src 'self'",
+].join('; ');
+
+function configuredPublicOrigin() {
+  const value = process.env.PUBLIC_ORIGIN?.trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('unsupported protocol');
+    return url.origin;
+  } catch {
+    throw new Error('PUBLIC_ORIGIN must be an absolute http(s) URL.');
+  }
+}
+
+const publicOrigin = configuredPublicOrigin();
+
+function requestOrigin(req) {
+  return publicOrigin ?? `${req.protocol}://${req.get('host')}`;
+}
+
+app.use((req, res, next) => {
+  res.set({
+    'Content-Security-Policy': CONTENT_SECURITY_POLICY,
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+  });
+  if (req.secure) res.set('Strict-Transport-Security', 'max-age=31536000');
+  next();
+});
+
+// Cookie auth is already SameSite=Lax; this also rejects mutation requests
+// from hostile sibling sites and makes the boundary explicit for browsers.
+// Native clients without browser fetch metadata remain supported.
+app.use('/api', (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const origin = req.get('origin');
+  if (req.get('sec-fetch-site') === 'cross-site' || (origin && origin !== requestOrigin(req))) {
+    return res.status(403).json({ error: 'Cross-origin request blocked.' });
+  }
+  next();
+});
+
+app.use(express.json({ limit: '32kb' }));
 app.use(cookieParser());
 
 app.use('/api/auth', authRouter);
@@ -51,6 +111,20 @@ app.post('/api/push/unsubscribe', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
+app.use('/api', (err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const status = Number(err.status ?? err.statusCode) || 500;
+  if (status >= 500) console.error(err);
+  const message =
+    err.type === 'entity.parse.failed'
+      ? 'Invalid JSON body.'
+      : err.type === 'entity.too.large'
+        ? 'Request body is too large.'
+        : status >= 500
+          ? 'Internal server error.'
+          : err.message || 'Request failed.';
+  res.status(status).json({ error: message });
+});
 
 // Serve the built frontend; fall back to index.html for client-side routes.
 // The fallback injects Open Graph tags so shared links (WhatsApp etc.) show
@@ -62,7 +136,7 @@ function escapeHtml(s) {
 }
 
 function renderIndex(template, req) {
-  const base = `${req.protocol}://${req.get('host')}`;
+  const base = requestOrigin(req);
   let title = 'Learning Space Manager';
   let description = 'Reserve study tables together — see live who is coming and when.';
   const match = /^\/s\/([A-Za-z0-9]+)$/.exec(req.path);
