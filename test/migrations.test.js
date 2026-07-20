@@ -51,4 +51,7 @@ test('existing databases receive layout, archive, and notification columns', () 
   for (const name of ['archived', 'notify_setup', 'notify_activity', 'notify_votes', 'notify_timers', 'notify_chat', 'color']) {
     assert.ok(memberColumns.has(name), `missing ${name}`);
   }
+  assert.ok(db.prepare(`
+    SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'name_blocklist'
+  `).get(), 'missing name_blocklist table');
 });

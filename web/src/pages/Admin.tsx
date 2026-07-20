@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../AuthContext';
@@ -31,10 +32,19 @@ interface AdminInvite {
   usedByName: string | null;
 }
 
+interface AdminBlockedName {
+  id: number;
+  value: string;
+  matchType: 'exact' | 'contains';
+  createdAt: number;
+  createdByName: string | null;
+}
+
 interface Overview {
   users: AdminUser[];
   spaces: AdminSpace[];
   invites: AdminInvite[];
+  blockedNames: AdminBlockedName[];
 }
 
 function formatDate(unix: number) {
@@ -47,6 +57,9 @@ export function Admin() {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
+  const [blockedName, setBlockedName] = useState('');
+  const [blockMatchType, setBlockMatchType] = useState<'exact' | 'contains'>('exact');
+  const [savingRule, setSavingRule] = useState(false);
 
   const refresh = useCallback(() => {
     api<Overview>('/api/admin/overview')
@@ -124,6 +137,36 @@ export function Admin() {
     }
   }
 
+  async function addBlocklistRule(event: FormEvent) {
+    event.preventDefault();
+    const value = blockedName.trim();
+    if (!value || savingRule) return;
+    setSavingRule(true);
+    setError(null);
+    try {
+      await api('/api/admin/blocklist', {
+        method: 'POST',
+        body: { value, matchType: blockMatchType },
+      });
+      setBlockedName('');
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not add the name rule.');
+    } finally {
+      setSavingRule(false);
+    }
+  }
+
+  async function removeBlocklistRule(rule: AdminBlockedName) {
+    setError(null);
+    try {
+      await api(`/api/admin/blocklist/${rule.id}`, { method: 'DELETE' });
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove the name rule.');
+    }
+  }
+
   if (!user || (!data && !error)) {
     return <div className="screen-center">Loading…</div>;
   }
@@ -171,8 +214,78 @@ export function Admin() {
               </div>
             ))}
             <button className="btn btn-secondary" onClick={() => void generateInvite()}>
-              ➕ Generate invite code
+              + Generate invite code
             </button>
+          </div>
+
+          <div className="card stack admin-blocklist-card">
+            <div>
+              <h2 className="section-title">Name blocklist ({data.blockedNames.length})</h2>
+              <p className="hint">Add rules here to block new accounts and friend reservations immediately.</p>
+            </div>
+
+            <form className="admin-blocklist-form" onSubmit={(event) => void addBlocklistRule(event)}>
+              <label className="field">
+                <span>Name or term</span>
+                <input
+                  className="input"
+                  value={blockedName}
+                  maxLength={20}
+                  placeholder="e.g. Fake Name"
+                  autoComplete="off"
+                  onChange={(event) => setBlockedName(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span>Match</span>
+                <select
+                  className="input admin-blocklist-select"
+                  value={blockMatchType}
+                  onChange={(event) => setBlockMatchType(event.target.value as 'exact' | 'contains')}
+                >
+                  <option value="exact">Exact name</option>
+                  <option value="contains">Contains term</option>
+                </select>
+              </label>
+              <button className="btn btn-primary" disabled={!blockedName.trim() || savingRule}>
+                {savingRule ? 'Adding…' : '+ Add to blocklist'}
+              </button>
+            </form>
+
+            <p className="hint admin-blocklist-help">
+              Exact name is safer and still ignores case, punctuation and leetspeak. Contains term also blocks it inside longer names.
+            </p>
+
+            {data.blockedNames.length === 0 && (
+              <div className="admin-empty-rule">
+                <span className="admin-empty-rule-icon" aria-hidden="true">✓</span>
+                <span>
+                  <strong>No custom rules yet</strong>
+                  <small>The protected built-in safety list is still active.</small>
+                </span>
+              </div>
+            )}
+            {data.blockedNames.map((rule) => (
+              <div key={rule.id} className="occupant-row admin-row admin-blocklist-row">
+                <span className="group-main">
+                  <span className="recent-name">{rule.value}</span>
+                  <span className="group-sub">
+                    <span className={`admin-rule-badge ${rule.matchType}`}>
+                      {rule.matchType === 'exact' ? 'Exact name' : 'Contains term'}
+                    </span>
+                    {' · '}added by {rule.createdByName ?? 'a deleted admin'} · {formatDate(rule.createdAt)}
+                  </span>
+                </span>
+                <button
+                  className="occupant-btn danger"
+                  title={`Remove ${rule.value} from blocklist`}
+                  aria-label={`Remove ${rule.value} from blocklist`}
+                  onClick={() => void removeBlocklistRule(rule)}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
           </div>
 
           <div className="card stack">

@@ -10,6 +10,7 @@ import { timersRouter, timerForState, clearTimers } from './timers.js';
 import { chatRouter, chatForState, clearChat } from './chat.js';
 import { zurichDate } from './dates.js';
 import { layoutSummary, parseLayout, snapshotLayout } from './layouts.js';
+import { BLOCKED_NAME_ERROR, isBlockedName } from './name-policy.js';
 
 export const spacesRouter = Router();
 spacesRouter.use(requireAuth);
@@ -646,6 +647,7 @@ spacesRouter.post('/:code/tables/:tableId/guests', (req, res) => {
   if (!space) return;
   const guestName = String(req.body?.name ?? '').trim();
   if (!guestName || guestName.length > 20) return res.status(400).json({ error: 'Give your friend a name (max 20 characters).' });
+  if (isBlockedName(guestName)) return res.status(400).json({ error: BLOCKED_NAME_ERROR });
   const eta = normalizeEta(req.body?.eta);
   if (!eta) return res.status(400).json({ error: 'Invalid arrival time.' });
   const table = db.prepare('SELECT * FROM tables WHERE id = ? AND space_id = ?').get(req.params.tableId, space.id);
