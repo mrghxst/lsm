@@ -21,14 +21,14 @@ const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "base-uri 'self'",
   "connect-src 'self'",
-  "font-src 'self' https://fonts.gstatic.com data:",
+  "font-src 'self' data:",
   "form-action 'self'",
   "frame-ancestors 'none'",
   "img-src 'self' data: https:",
   "manifest-src 'self'",
   "object-src 'none'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
   "worker-src 'self'",
 ].join('; ');
 
